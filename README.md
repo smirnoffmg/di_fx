@@ -14,7 +14,7 @@
 **di_fx** brings the proven patterns of [Uber-Fx](https://github.com/uber-go/fx) to Python with a **native async-first architecture**. Unlike traditional Python DI frameworks, di_fx is built from the ground up for Python's `asyncio` event loop, providing superior performance and seamless integration with modern async Python frameworks.
 
 ```python
-from di_fx import App, Provide, Supply
+from di_fx import Component, Provide, Supply
 
 # Define your services
 async def new_database_pool(config: DatabaseConfig) -> AsyncIterator[Database]:
@@ -33,8 +33,8 @@ def new_http_server(lifecycle: Lifecycle, user_service: UserService) -> HttpServ
     return server
 
 # Wire everything together
-def create_app() -> App:
-    return App(
+def create_app() -> Component:
+    return Component(
         Provide(
             new_database_pool,
             new_cache_service,
@@ -102,7 +102,7 @@ pip install di_fx[rust]  # 10-100x performance boost
 import asyncio
 from dataclasses import dataclass
 from typing import AsyncIterator
-from di_fx import App, Provide, Supply, Lifecycle, Hook
+from di_fx import Component, Hook, Lifecycle, Provide, Supply
 
 @dataclass
 class DatabaseConfig:
@@ -129,7 +129,7 @@ def new_user_service(db: Database) -> UserService:
     return UserService(db)
 
 # Application setup
-app = App(
+app = Component(
     Provide(new_database, new_user_service),
     Supply(DatabaseConfig(url="postgresql://localhost/mydb")),
 )
@@ -244,11 +244,11 @@ di_fx makes testing with dependency injection straightforward:
 
 ```python
 import pytest
-from di_fx.testing import TestApp
+from di_fx import Component
 
 @pytest.fixture
 async def test_app():
-    app = TestApp(
+    app = Component(
         Provide(
             new_mock_database,  # Test database
             new_user_service,   # Real service with mocked dependencies
@@ -272,7 +272,7 @@ async def test_with_overrides():
     mock_database = AsyncMock(spec=Database)
     mock_database.fetch_user.return_value = {"id": "123", "name": "Mocked"}
     
-    app = TestApp(
+    app = Component(
         Provide(new_user_service),
         Override(Database, mock_database),
     )
@@ -328,7 +328,7 @@ async def handle_request(request):
 ### Hot Reloading
 ```python
 # Development mode with hot reloading
-app = App(
+app = Component(
     Provide(new_user_service, new_api_handler),
     EnableHotReload(watch_paths=["./src"]),
 )
@@ -349,10 +349,10 @@ await app.run()  # Watches filesystem and reloads services
 
 ## 🔧 Advanced Features
 
-### Module Organization
+### Component Organization
 ```python
-# database_module.py
-DatabaseModule = Module(
+# database_component.py
+DatabaseComponent = Component(
     Provide(
         new_database_pool,
         new_database_migrator,
@@ -363,10 +363,10 @@ DatabaseModule = Module(
 )
 
 # main.py
-app = App(
-    DatabaseModule,
-    HttpModule,
-    CacheModule,
+app = Component(
+    DatabaseComponent,
+    HttpComponent,
+    CacheComponent,
 )
 ```
 
@@ -411,7 +411,7 @@ class AppConfig:
         if self.server.port < 1024 and not self.server.run_as_root:
             raise ValueError("Cannot bind to privileged port without root")
 
-app = App(
+app = Component(
     Provide(new_database, new_cache, new_server),
     Supply(AppConfig.from_env()),
 )
@@ -422,7 +422,7 @@ app = App(
 - ✅ **Core DI Framework** - Function-centric async-first DI
 - ✅ **Lifecycle Management** - Startup/shutdown orchestration  
 - ✅ **Framework Integrations** - FastAPI, Django, aiohttp, Flask
-- ✅ **Testing Utilities** - TestApp and dependency overrides
+- ✅ **Testing Utilities** - Component and dependency overrides
 - 🔄 **Rust Performance Core** - 10-100x performance boost
 - 🔄 **Advanced Scoping** - Request, WebSocket, Task scopes
 - 🔄 **Service Mesh Integration** - Cross-language service discovery

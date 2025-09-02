@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import App, Named, Provide
+from di_fx import Component, Named, Provide
 
 
 class TestNamed:
@@ -91,7 +91,7 @@ class TestNamed:
             assert replica_db.name == "replica"
             return f"Services setup with {primary_db.name} and {replica_db.name}"
 
-        app = App(
+        app = Component(
             Provide(create_primary_db, create_replica_db), Provide(setup_services)
         )
 
@@ -136,7 +136,7 @@ class TestNamed:
             assert server.startswith("http://")
             return f"Services setup with {primary_db}, {replica_db}, {server}"
 
-        app = App(
+        app = Component(
             Provide(create_primary_db, create_replica_db, create_server),
             Provide(setup_services),
         )
@@ -171,7 +171,7 @@ class TestNamed:
             """Function that merges different config sources."""
             return f"Config merged from {env_config.source} and {file_config.source}"
 
-        app = App(
+        app = Component(
             Provide(create_env_config, create_file_config), Provide(merge_configs)
         )
 
@@ -198,7 +198,7 @@ class TestNamed:
         def use_service(service: MainService) -> str:
             return "Service used"
 
-        app = App(Provide(create_service), Provide(use_service))
+        app = Component(Provide(create_service), Provide(use_service))
 
         # Should not raise any errors
         app.validate()
@@ -218,7 +218,7 @@ class TestNamed:
         def use_service(service: OtherService) -> str:
             return "Service used"
 
-        app = App(Provide(create_service), Provide(use_service))
+        app = Component(Provide(create_service), Provide(use_service))
 
         # Should raise validation error because "other" named type is not provided
         with pytest.raises(Exception) as exc_info:

@@ -4,14 +4,14 @@ Complete features example for di_fx.
 This example demonstrates all the new functionality:
 - Invoke for startup initialization
 - Module for named modular organization
-- Options for grouping components
+- Component for grouping components
 - Annotated types for distinct dependency injection
 """
 
 import asyncio
 from typing import Annotated
 
-from di_fx import App, Invoke, Module, Options, Provide
+from di_fx import Component, Invoke, Provide
 
 # Use Annotated types to create distinct types for dependency injection
 DatabaseType = Annotated[str, "database"]
@@ -55,13 +55,13 @@ def print_startup_info(database: DatabaseType, server: ServerType) -> str:
 
 
 # Create modules for different concerns
-DatabaseModule = Module(
+DatabaseModule = Component(
     "database",
     Provide(create_database_config, create_database),
     Invoke(seed_database),
 )
 
-HttpModule = Module(
+HttpModule = Component(
     "http",
     Provide(create_server),
     Invoke(setup_routes),
@@ -69,9 +69,9 @@ HttpModule = Module(
 
 
 # Group all modules together
-def create_app() -> Options:
+def create_app() -> Component:
     """Create application options."""
-    return Options(
+    return Component(
         DatabaseModule,
         HttpModule,
         Invoke(print_startup_info),
@@ -83,7 +83,7 @@ async def main() -> None:
     print("Starting di_fx application with all features...")
 
     # Create the application with all components
-    app = App(create_app())
+    app = Component(create_app())
 
     # Use the application lifecycle
     async with app.lifecycle():

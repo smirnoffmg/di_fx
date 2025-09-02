@@ -8,7 +8,7 @@ before starting the application to catch missing dependencies.
 import asyncio
 from typing import Annotated
 
-from di_fx import App, Invoke, Module, Options, Provide, ValidationError
+from di_fx import Component, Invoke, Provide, ValidationError
 
 # Use Annotated types to create distinct types for dependency injection
 DatabaseType = Annotated[str, "database"]
@@ -52,13 +52,13 @@ def print_startup_info(database: DatabaseType, server: ServerType) -> str:
 
 
 # Create modules for different concerns
-DatabaseModule = Module(
+DatabaseModule = Component(
     "database",
     Provide(create_database_config, create_database),
     Invoke(seed_database),
 )
 
-HttpModule = Module(
+HttpModule = Component(
     "http",
     Provide(create_server),
     Invoke(setup_routes),
@@ -66,9 +66,9 @@ HttpModule = Module(
 
 
 # Group all modules together
-def create_app() -> Options:
+def create_app() -> Component:
     """Create application options."""
-    return Options(
+    return Component(
         DatabaseModule,
         HttpModule,
         Invoke(print_startup_info),
@@ -80,7 +80,7 @@ async def main() -> None:
     print("Starting di_fx application with validation...")
 
     # Create the application with all components
-    app = App(create_app())
+    app = Component(create_app())
 
     # Validate the dependency graph before starting
     try:
@@ -124,7 +124,7 @@ async def demonstrate_validation_failure() -> None:
     def create_service_b(service_c: int) -> str:
         return f"ServiceB with {service_c}"
 
-    app = App(Provide(create_service_a, create_service_b))
+    app = Component(Provide(create_service_a, create_service_b))
 
     try:
         print("Validating dependency graph with missing dependencies...")

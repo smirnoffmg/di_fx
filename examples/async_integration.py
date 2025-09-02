@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from di_fx import App, Hook, Lifecycle, Provide, Supply
+from di_fx import Component, Hook, Lifecycle, Provide, Supply
 
 
 @dataclass
@@ -69,7 +69,7 @@ class WorkerManager:
                 Hook(on_start=worker.start, on_stop=worker.stop, name=f"worker_{i}")
             )
 
-    async def start_workers(self, app: App) -> None:
+    async def start_workers(self, app: Component) -> None:
         """Start all background workers as asyncio tasks."""
         for worker in self.workers:
             # Create and track the worker task
@@ -89,7 +89,7 @@ async def new_worker_manager(config: Config, lifecycle: Lifecycle) -> WorkerMana
 async def main() -> None:
     """Main application function demonstrating asyncio integration."""
     # Create the application
-    app = App(
+    app = Component(
         Provide(new_worker_manager),
         Supply(Config(name="AsyncApp", worker_count=2)),
     )

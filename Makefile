@@ -18,23 +18,23 @@ install-dev:
 
 # Format code
 format:
-	ruff format src/ tests/ examples/
+	uv run ruff format src/ tests/ examples/
 
 # Run linter
 lint:
-	ruff check src/ tests/ examples/
+	uv run ruff check src/ tests/ examples/
 
 # Fix linting issues automatically
 lint-fix:
-	ruff check --fix src/ tests/ examples/
+	uv run ruff check --fix src/ tests/ examples/
 
 # Run type checker
 check:
-	mypy src/
+	uv run mypy src/
 
 # Run tests
 test:
-	pytest tests/ -v
+	uv run pytest tests/ -v
 
 # Run all checks
 all: format lint check test

@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import App, Invoke, Provide
+from di_fx import Component, Invoke, Provide
 
 
 class TestInvoke:
@@ -63,7 +63,7 @@ class TestInvoke:
             execution_order.append(f"seed_database({config})")
             return "Database seeded"
 
-        app = App(
+        app = Component(
             Provide(create_server, create_config),
             Invoke(setup_routes, seed_database),
         )
@@ -102,7 +102,7 @@ class TestInvoke:
             execution_order.append(f"seed_database({config})")
             return "Database seeded"
 
-        app = App(
+        app = Component(
             Provide(create_server, create_config),
             Invoke(setup_routes, seed_database),
         )
@@ -127,7 +127,7 @@ class TestInvoke:
         def failing_function(server: str):
             raise RuntimeError("Invoke function failed")
 
-        app = App(
+        app = Component(
             Provide(create_server),
             Invoke(failing_function),
         )

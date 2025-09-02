@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from .annotate import As
+from .component import Component
 
 T = TypeVar("T", bound=Any)
 
@@ -27,10 +28,11 @@ class Provider:
             raise ValueError("Constructor must be callable")
 
 
-class Provide:
+class Provide(Component):
     """Container for registering service providers."""
 
     def __init__(self, *constructors: Callable[..., Any]) -> None:
+        super().__init__()
         self._providers: dict[type[Any], Provider] = {}
 
         for constructor in constructors:
@@ -102,30 +104,71 @@ class Provide:
                     self._providers[inner_type] = inner_provider
 
     def _get_dependencies(self, constructor: Callable[..., Any]) -> list[type[Any]]:
-        """Extract dependencies from a constructor function."""
+        """Extract dependency types from constructor signature."""
         import inspect
 
-        dependencies = []
         sig = inspect.signature(constructor)
+        dependencies = []
 
-        for param in sig.parameters.values():
-            if param.annotation != inspect.Signature.empty:
-                dependencies.append(param.annotation)
+        for param_name, param in sig.parameters.items():
+            if param_name == "self":
+                continue
+
+            param_type = param.annotation
+            if param_type == inspect.Signature.empty:
+                raise ValueError(
+                    f"Parameter {param_name} in {constructor.__name__} must have type annotation"
+                )
+
+            dependencies.append(param_type)
 
         return dependencies
 
-    def get_provider(self, type_: type[Any]) -> Provider:
+    def get_providers(self) -> list[Any]:
+        """Get all providers registered in this Provide component."""
+        return list(self._providers.values())
+
+    def get_supplies(self) -> list[Any]:
+        """Provide components don't contain supplies."""
+        return []
+
+    def get_invokables(self) -> list[Any]:
+        """Provide components don't contain invokables."""
+        return []
+
+    def __getitem__(self, type_: type[T]) -> Provider:
         """Get a provider for a specific type."""
         if type_ not in self._providers:
-            raise KeyError(f"No provider registered for type {type_.__name__}")
+            raise KeyError(f"No provider registered for type {type_}")
         return self._providers[type_]
 
-    def has_provider(self, type_: type[Any]) -> bool:
+    def __contains__(self, type_: type[Any]) -> bool:
         """Check if a provider exists for a type."""
         return type_ in self._providers
 
+    def __iter__(self) -> Any:
+        """Iterate over registered providers."""
+        return iter(self._providers.values())
+
     def __len__(self) -> int:
+        """Get the number of registered providers."""
         return len(self._providers)
 
-    def __iter__(self) -> Any:
-        return iter(self._providers.values())
+    def get_provider_types(self) -> list[type[Any]]:
+        """Get all types that have providers registered."""
+        return list(self._providers.keys())
+
+    def has_provider_for(self, type_: type[Any]) -> bool:
+        """Check if a provider exists for a specific type."""
+        return type_ in self._providers
+
+    def get_provider_info(self) -> dict[type[Any], dict[str, Any]]:
+        """Get detailed information about all providers."""
+        info = {}
+        for type_, provider in self._providers.items():
+            info[type_] = {
+                "constructor": provider.constructor.__name__,
+                "dependencies": provider.dependencies,
+                "singleton": provider.singleton,
+            }
+        return info

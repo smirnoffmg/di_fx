@@ -1,11 +1,11 @@
-"""Pytest configuration and fixtures for di_fx tests."""
+"""Test configuration and fixtures for di_fx."""
 
 import asyncio
 from collections.abc import AsyncGenerator
 
 import pytest
 
-from di_fx import App, Hook, Provide, Supply
+from di_fx import Component, Hook, Provide, Supply
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def event_loop():
 
 
 @pytest.fixture
-async def basic_app() -> AsyncGenerator[App, None]:
+async def basic_app() -> AsyncGenerator[Component, None]:
     """Create a basic DI app for testing."""
 
     # Simple test services
@@ -27,14 +27,14 @@ async def basic_app() -> AsyncGenerator[App, None]:
     def create_service(config: dict) -> str:
         return f"Service with config: {config}"
 
-    app = App(Provide(create_config, create_service), Supply("test_value"))
+    app = Component(Provide(create_config, create_service), Supply("test_value"))
 
     async with app.lifecycle():
         yield app
 
 
 @pytest.fixture
-async def lifecycle_app() -> AsyncGenerator[App, None]:
+async def lifecycle_app() -> AsyncGenerator[Component, None]:
     """Create a DI app with lifecycle hooks for testing."""
 
     async def start_hook():
@@ -47,7 +47,7 @@ async def lifecycle_app() -> AsyncGenerator[App, None]:
         lifecycle.append(Hook(on_start=start_hook, on_stop=stop_hook))
         return "LifecycleService"
 
-    app = App(Provide(create_lifecycle_service))
+    app = Component(Provide(create_lifecycle_service))
 
     async with app.lifecycle():
         yield app

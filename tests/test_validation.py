@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import App, Invoke, Provide, ValidationError
+from di_fx import Component, Invoke, Provide, ValidationError
 
 
 class TestValidation:
@@ -17,7 +17,7 @@ class TestValidation:
         def create_server(config: dict) -> str:
             return f"Server on port {config['port']}"
 
-        app = App(Provide(create_config, create_server))
+        app = Component(Provide(create_config, create_server))
 
         # Should not raise any errors
         app.validate()
@@ -28,7 +28,7 @@ class TestValidation:
         def create_server(config: dict) -> str:
             return f"Server on port {config['port']}"
 
-        app = App(Provide(create_server))
+        app = Component(Provide(create_server))
 
         # Should raise ValidationError because config is missing
         with pytest.raises(ValidationError) as exc_info:
@@ -56,7 +56,7 @@ class TestValidation:
         def create_service_b(service_a: ServiceA) -> ServiceB:
             return ServiceB(service_a)
 
-        app = App(Provide(create_service_a, create_service_b))
+        app = Component(Provide(create_service_a, create_service_b))
 
         # Should raise ValidationError because of circular dependency
         with pytest.raises(ValidationError) as exc_info:
@@ -78,7 +78,7 @@ class TestValidation:
         def setup_routes(server: str) -> str:
             return f"Routes setup for {server}"
 
-        app = App(Provide(create_config, create_server), Invoke(setup_routes))
+        app = Component(Provide(create_config, create_server), Invoke(setup_routes))
 
         # Should not raise any errors
         app.validate()
@@ -92,7 +92,7 @@ class TestValidation:
         def create_service_b(service_c: int) -> str:
             return f"ServiceB with {service_c}"
 
-        app = App(Provide(create_service_a, create_service_b))
+        app = Component(Provide(create_service_a, create_service_b))
 
         # Should raise ValidationError with missing dependencies
         with pytest.raises(ValidationError) as exc_info:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import Annotate, App, As, Provide
+from di_fx import Annotate, As, Component, Provide
 
 
 class TestAnnotate:
@@ -55,7 +55,7 @@ class TestAnnotate:
         class UserStorage:
             pass
 
-        app = App(
+        app = Component(
             Provide(Annotate(create_user_repository, As(UserAccessor), As(UserStorage)))
         )
 
@@ -83,7 +83,7 @@ class TestAnnotate:
         class UserAccessor:
             pass
 
-        app = App(
+        app = Component(
             Provide(
                 Annotate(create_user_repo, As(UserAccessor)),
                 Annotate(create_admin_repo, As(UserAccessor)),

@@ -1,15 +1,19 @@
+#!/usr/bin/env python3
 """
-Basic usage example for di_fx.
+Basic usage example for di_fx dependency injection framework.
 
-This example demonstrates the core functionality of the dependency
-injection framework.
+This example demonstrates the core functionality:
+- Service providers
+- Configuration values
+- Lifecycle hooks
+- Async integration
 """
 
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from di_fx import App, Hook, Lifecycle, Provide, Supply
+from di_fx import Component, Hook, Lifecycle, Provide, Supply
 
 
 @dataclass
@@ -89,7 +93,7 @@ def new_background_worker(lifecycle: Lifecycle, user_service: UserService) -> st
 async def main() -> None:
     """Main application function."""
     # Create the application
-    app = App(
+    app = Component(
         Provide(
             new_database,
             new_user_service,

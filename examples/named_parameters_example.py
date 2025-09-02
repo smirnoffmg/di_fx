@@ -8,7 +8,7 @@ multiple providers of the same type with different names.
 import asyncio
 from typing import Annotated
 
-from di_fx import App, Invoke, Module, Named, Options, Provide
+from di_fx import Component, Invoke, Named, Provide
 
 # Use Annotated types to create distinct types
 DatabaseType = Annotated[str, "database"]
@@ -135,28 +135,28 @@ def setup_services(
 
 
 # Create modules for different concerns
-DatabaseModule = Module(
+DatabaseModule = Component(
     "database",
     Provide(create_primary_database, create_replica_database),
     Invoke(setup_database_connections),
 )
 
-ConfigModule = Module(
+ConfigModule = Component(
     "config",
     Provide(create_env_config, create_file_config),
     Invoke(merge_configurations),
 )
 
-HttpModule = Module(
+HttpModule = Component(
     "http",
     Provide(create_server),
 )
 
 
 # Group all modules together
-def create_app() -> Options:
+def create_app() -> Component:
     """Create application options."""
-    return Options(
+    return Component(
         DatabaseModule,
         ConfigModule,
         HttpModule,
@@ -170,7 +170,7 @@ async def main() -> None:
     print("=" * 60)
 
     # Create the application with all components
-    app = App(create_app())
+    app = Component(create_app())
 
     # Validate the dependency graph before starting
     try:
