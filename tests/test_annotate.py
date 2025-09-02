@@ -10,6 +10,7 @@ class TestAnnotate:
 
     def test_as_creation(self):
         """Test creating As annotations."""
+
         class UserRepository:
             pass
 
@@ -22,6 +23,7 @@ class TestAnnotate:
 
     def test_annotate_creation(self):
         """Test creating Annotate tuples."""
+
         def create_user_repo():
             return "UserRepository"
 
@@ -54,9 +56,7 @@ class TestAnnotate:
             pass
 
         app = App(
-            Provide(
-                Annotate(create_user_repository, As(UserAccessor), As(UserStorage))
-            )
+            Provide(Annotate(create_user_repository, As(UserAccessor), As(UserStorage)))
         )
 
         # Should be able to resolve the concrete type
@@ -86,7 +86,7 @@ class TestAnnotate:
         app = App(
             Provide(
                 Annotate(create_user_repo, As(UserAccessor)),
-                Annotate(create_admin_repo, As(UserAccessor))
+                Annotate(create_admin_repo, As(UserAccessor)),
             )
         )
 

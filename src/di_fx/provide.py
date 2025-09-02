@@ -39,8 +39,8 @@ class Provide:
     def _register_constructor(self, constructor: Callable[..., Any]) -> None:
         """Register a constructor function."""
         # Handle Annotate tuples (constructor, annotations)
-        if isinstance(constructor, tuple) and len(constructor) == 2:
-            actual_constructor, annotations = constructor
+        if isinstance(constructor, tuple) and len(constructor) == 2:  # type: ignore[unreachable]
+            actual_constructor, annotations = constructor  # type: ignore[unreachable]
             if callable(actual_constructor) and isinstance(annotations, list):
                 # Register the main constructor
                 self._register_constructor_internal(actual_constructor)
@@ -53,9 +53,10 @@ class Provide:
                             return_type=annotation.interface_type,
                             dependencies=self._get_dependencies(actual_constructor),
                         )
+                # Early return for valid tuple format
                 return
 
-        # Regular constructor
+        # Regular constructor (including invalid tuple formats)
         self._register_constructor_internal(constructor)
 
     def _register_constructor_internal(self, constructor: Callable[..., Any]) -> None:

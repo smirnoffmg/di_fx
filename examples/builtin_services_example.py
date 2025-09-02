@@ -74,14 +74,14 @@ def setup_health_monitoring(
     print(f"Setting up health monitoring for {database} and {server}")
 
     # Simulate a health check that might trigger shutdown
-    async def health_check():
+    async def health_check() -> None:
         # Simulate some health monitoring logic
         await asyncio.sleep(0.1)
 
         # Example: if health check fails, trigger shutdown
         # (In real apps, this would be based on actual health metrics)
         if False:  # Simulate health check failure
-            await shutdowner.shutdown("Health check failed")
+            await shutdowner.shutdown("Health check failed")  # type: ignore[unreachable]
 
     # In a real app, you'd schedule this health check
     print("Health monitoring setup complete")

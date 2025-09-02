@@ -47,15 +47,15 @@ class App:
         """Auto-provide built-in services like Uber-Fx does."""
         # Initialize built-in services
         # Note: These will be updated with final state when needed
-        self._builtin_dotgraph = None
-        self._builtin_shutdowner = None
+        self._builtin_dotgraph: DotGraph | None = None
+        self._builtin_shutdowner: Shutdowner | None = None
 
     def _request_shutdown(self) -> None:
         """Request shutdown of the application."""
-        if not self._stopped:
+        if not self._started:
             # Schedule shutdown on the event loop
             if self._loop and self._loop.is_running():
-                self._loop.create_task(self._stop())
+                self._loop.create_task(self.stop())
 
     def _process_component(self, component: Any) -> None:
         """Process a single component and extract its providers, values, and invokables."""
@@ -102,20 +102,28 @@ class App:
         from .dotgraph import DotGraph as DotGraphClass
 
         if type_ == DotGraphClass:
-            return DotGraph(self._providers, self._values)  # type: ignore
+            if self._builtin_dotgraph is None:
+                self._builtin_dotgraph = DotGraph(self._providers, self._values)
+            return self._builtin_dotgraph  # type: ignore
 
         # Special case: provide Shutdowner instance
         from .shutdowner import Shutdowner as ShutdownerClass
 
         if type_ == ShutdownerClass:
-            return Shutdowner(self._request_shutdown)  # type: ignore
+            if self._builtin_shutdowner is None:
+                self._builtin_shutdowner = Shutdowner(self._request_shutdown)
+            return self._builtin_shutdowner  # type: ignore
 
         # Check if this is a Named type
         from .named import get_named_type_info, is_named_type
 
         if is_named_type(type_):
             # For Named types, we need to find a provider that matches the name
-            name, base_type = get_named_type_info(type_)
+            named_info = get_named_type_info(type_)
+            if named_info is None:
+                raise KeyError(f"Invalid named type: {type_.__name__}")
+
+            name, base_type = named_info
 
             # Look for a provider that returns this Named type
             if type_ in self._providers:
@@ -134,17 +142,18 @@ class App:
             provider = self._providers[type_]
 
         # Resolve dependencies
-        dependencies = []
-        for dep_type in provider.dependencies:
-            if dep_type in self._instances:
-                dependencies.append(self._instances[dep_type])
-            elif dep_type in self._values:
-                dependencies.append(self._values[dep_type].value)
-            elif dep_type == LifecycleClass:
-                dependencies.append(self._lifecycle)
-            else:
-                # Recursively resolve dependency
-                dependencies.append(await self.resolve(dep_type))
+        dependencies: list[Any] = []
+        if provider.dependencies:
+            for dep_type in provider.dependencies:
+                if dep_type in self._instances:
+                    dependencies.append(self._instances[dep_type])
+                elif dep_type in self._values:
+                    dependencies.append(self._values[dep_type].value)
+                elif dep_type == LifecycleClass:
+                    dependencies.append(self._lifecycle)
+                else:
+                    # Recursively resolve dependency
+                    dependencies.append(await self.resolve(dep_type))
 
         # Create instance
         instance = provider.constructor(*dependencies)
@@ -196,16 +205,16 @@ class App:
         for invokable in self._invokables:
             try:
                 # Resolve dependencies for the invokable function
-                dependencies = []
+                dependencies: list[Any] = []
                 if invokable.dependencies:
                     for dep_type in invokable.dependencies:
                         # Handle built-in services specially
                         from .dotgraph import DotGraph as DotGraphClass
-                        from .shutdowner import Shutdowner as ShutdownerClass
+                        from .shutdowner import Shutdowner as ShutdownClass
 
                         if dep_type == DotGraphClass:
                             dependencies.append(self._builtin_dotgraph)
-                        elif dep_type == ShutdownerClass:
+                        elif dep_type == ShutdownClass:
                             dependencies.append(self._builtin_shutdowner)
                         else:
                             dependencies.append(await self.resolve(dep_type))

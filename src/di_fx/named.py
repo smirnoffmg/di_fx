@@ -70,6 +70,9 @@ def get_named_type_info(type_: type[Any]) -> tuple[str, type[Any]] | None:
     Returns:
         Tuple of (name, base_type) if it's a Named type, None otherwise
     """
-    if isinstance(type_, Named):
-        return type_.name, type_.type
+    # Use hasattr to check for Named attributes without isinstance
+    if hasattr(type_, "name") and hasattr(type_, "type"):
+        # Additional safety check - verify these are the right types
+        if isinstance(type_.name, str) and isinstance(type_.type, type):
+            return type_.name, type_.type
     return None

@@ -8,6 +8,7 @@ help:
 	@echo "  check      - Run type checking with mypy"
 	@echo "  test       - Run tests with pytest"
 	@echo "  all        - Run format, lint, check, and test"
+	@echo "  ci-test    - Test CI workflow locally"
 	@echo "  install-dev - Install development dependencies"
 	@echo "  clean      - Clean up cache and build files"
 
