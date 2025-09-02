@@ -246,6 +246,8 @@ ehthumbs_vista.db
 
 # Dump file
 *.stackdump
+.cursor/
+dependencies.dot
 
 # Folder config file
 [Dd]esktop.ini
@@ -262,4 +264,3 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-novitas.db
