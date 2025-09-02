@@ -14,7 +14,7 @@ help:
 
 # Install development dependencies
 install-dev:
-	uv pip install -e ".[dev]"
+	uv sync --dev
 
 # Format code
 format:
