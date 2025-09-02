@@ -24,14 +24,6 @@ classifiers = [
 ]
 dependencies = ["typing-extensions>=4.8.0"]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "mypy>=1.5.0",
-    "ruff>=0.3.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/smirnoffmg/di_fx"
@@ -103,8 +95,12 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
+    "--timeout=30",
+    "--timeout-method=thread",
 ]
 asyncio_mode = "auto"
+timeout = 30
+timeout_method = "thread"
 
 [tool.coverage.run]
 source = ["src"]
@@ -122,4 +118,16 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.1",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-benchmark>=5.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.12.11",
 ]
