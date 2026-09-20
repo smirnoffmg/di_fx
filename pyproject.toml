@@ -47,13 +47,18 @@ select = [
     "I",  # isort
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
-    "UP", # pyupgrade
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
 ]
 ignore = [
     "E501", # line too long, handled by black
     "B008", # do not perform function calls in argument defaults
     "C901", # too complex
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# A fake or a fixture is free to ignore what it is handed; a provider is not.
+"tests/*" = ["ARG"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["di_fx"]

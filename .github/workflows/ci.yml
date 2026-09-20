@@ -13,6 +13,8 @@ permissions:
 jobs:
   quality-checks:
     runs-on: ubuntu-latest
+    # An example that stops terminating would otherwise hold a runner for hours.
+    timeout-minutes: 10
     strategy:
       matrix:
         python-version: ["3.12", "3.13"]
@@ -63,7 +65,7 @@ jobs:
       run: |
         for example in examples/*.py; do
           echo "::group::$example"
-          uv run python "$example" || exit 1
+          timeout 60 uv run python "$example" || exit 1
           echo "::endgroup::"
         done
 

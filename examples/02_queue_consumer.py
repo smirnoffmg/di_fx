@@ -91,7 +91,18 @@ def new_consumer(
 
 # Invoke is what pulls the graph into existence. Without it nothing is constructed,
 # and a constructor that never runs never registers its hooks.
-async def fill_the_queue(queue: Queue, config: Config, consumer: Consumer) -> None:
+async def fill_the_queue(
+    queue: Queue,
+    config: Config,
+    consumer: Consumer,  # noqa: ARG001 - asked for so that it gets built
+) -> None:
+    """Publish the work, and bring the consumer into existence while doing it.
+
+    The consumer parameter is never touched here. That is the point: nothing else
+    depends on the Consumer, so without this line it would never be constructed and
+    its lifecycle hook would never be appended. In a provider an unused parameter is
+    a mistake; in an invokable it is how you root part of the graph.
+    """
     for number in range(config.messages_to_process):
         await queue.publish(f"job-{number}")
 

@@ -91,3 +91,13 @@ class TestTypeName:
 
     def test_a_named_type_carries_its_name(self):
         assert type_name(Named("primary", Database)) == "primary:Database"
+
+    def test_an_annotated_alias_shows_its_tag(self):
+        from typing import Annotated
+
+        assert type_name(Annotated[str, "dsn"]) == "Annotated[str, 'dsn']"
+
+    def test_an_annotated_alias_with_several_tags(self):
+        from typing import Annotated
+
+        assert type_name(Annotated[int, "a", "b"]) == "Annotated[int, 'a', 'b']"

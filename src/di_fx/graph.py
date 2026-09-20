@@ -33,6 +33,16 @@ def type_name(type_: Any) -> str:
     if named is not None:
         name, base_type = named
         return f"{name}:{base_type.__name__}"
+
+    metadata = getattr(type_, "__metadata__", None)
+    if metadata is not None:
+        # Every Annotated alias reports __name__ == "Annotated", which in an error
+        # message is the one part the reader already knows. The tag is the point.
+        args = getattr(type_, "__args__", ())
+        base = type_name(args[0]) if args else "?"
+        tags = ", ".join(repr(tag) for tag in metadata)
+        return f"Annotated[{base}, {tags}]"
+
     return str(getattr(type_, "__name__", type_))
 
 

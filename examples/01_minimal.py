@@ -83,10 +83,13 @@ def new_user_service(db: Database) -> UserService:
     return UserService(db)
 
 
-def new_background_worker(
-    lifecycle: Lifecycle, user_service: UserService
-) -> BackgroundWorker:
-    """Create background worker with lifecycle hooks."""
+def new_background_worker(lifecycle: Lifecycle) -> BackgroundWorker:
+    """Create background worker with lifecycle hooks.
+
+    Only the parameters this constructor actually uses belong here: each one is a
+    dependency edge, so an unused parameter makes di_fx build something for no
+    reason and puts it in the graph ahead of this worker.
+    """
     worker = BackgroundWorker("UserDataProcessor")
 
     async def start_worker() -> None:
