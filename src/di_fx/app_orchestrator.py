@@ -22,8 +22,9 @@ from .validation_manager import ValidationManager
 class AppOrchestrator:
     """Orchestrates the high-level workflow and coordination between DI managers."""
 
-    def __init__(self, *components: Any) -> None:
+    def __init__(self, *components: Any, validate: bool = True) -> None:
         """Initialize the application orchestrator with components."""
+        self._validate_on_start = validate
         # Initialize managers
         self._component_processor_manager = ComponentProcessorManager()
         self._lifecycle = Lifecycle()
@@ -46,7 +47,7 @@ class AppOrchestrator:
         self._resolver = DependencyResolver(
             providers, values, {}, self._lifecycle, self._lifecycle_manager
         )
-        self._validation_manager = ValidationManager(providers)
+        self._validation_manager = ValidationManager(providers, values, invokables)
         self._invokable_executor = InvokableExecutor(
             self._builtin_service_manager, providers, values
         )
@@ -69,6 +70,9 @@ class AppOrchestrator:
             return
 
         try:
+            if self._validate_on_start:
+                self.validate()
+
             # Get the current event loop
             loop = asyncio.get_running_loop()
             self._lifecycle_manager.set_loop(loop)

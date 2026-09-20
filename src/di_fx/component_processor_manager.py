@@ -30,9 +30,8 @@ class ComponentProcessorManager:
             component: The component to process (Provide, Supply, Invoke, or Component)
         """
         if isinstance(component, Provide):
-            self._providers.update(
-                {provider.return_type: provider for provider in component}
-            )
+            for provider in component:
+                self._add_provider(provider.return_type, provider)
         elif isinstance(component, Supply):
             self._values.update({value.type_: value for value in component})
         elif isinstance(component, Invoke):
@@ -46,7 +45,7 @@ class ComponentProcessorManager:
 
             # Add extracted providers
             for provider in providers:
-                self._providers[provider.return_type] = provider
+                self._add_provider(provider.return_type, provider)
 
             # Add extracted supplies
             for supply in supplies:
@@ -56,6 +55,15 @@ class ComponentProcessorManager:
             self._invokables.extend(invokables)
         else:
             raise ValueError(f"Unknown component type: {type(component)}")
+
+    def _add_provider(self, type_: Any, provider: Any) -> None:
+        """Bind a type across components, refusing to shadow an existing binding."""
+        from .validation import DuplicateProviderError
+
+        existing = self._providers.get(type_)
+        if existing is not None and existing.constructor is not provider.constructor:
+            raise DuplicateProviderError(type_, existing, provider)
+        self._providers[type_] = provider
 
     def get_providers(self) -> dict[type[Any], Any]:
         """Get the processed providers."""

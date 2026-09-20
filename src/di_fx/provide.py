@@ -4,14 +4,31 @@ Provider registration for dependency injection framework.
 This module provides the Provide class for registering service constructors.
 """
 
-from collections.abc import Callable
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterable,
+    AsyncIterator,
+    Callable,
+    Generator,
+    Iterable,
+    Iterator,
+)
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, TypeVar, get_origin
 
 from .annotate import As
 from .component import Component
 
 T = TypeVar("T", bound=Any)
+
+_RESOURCE_ORIGINS = (
+    AsyncIterator,
+    AsyncIterable,
+    AsyncGenerator,
+    Iterator,
+    Iterable,
+    Generator,
+)
 
 
 @dataclass
@@ -50,16 +67,28 @@ class Provide(Component):
                 # Register for each interface type
                 for annotation in annotations:
                     if isinstance(annotation, As):
-                        self._providers[annotation.interface_type] = Provider(
-                            constructor=actual_constructor,
-                            return_type=annotation.interface_type,
-                            dependencies=self._get_dependencies(actual_constructor),
+                        self._register(
+                            annotation.interface_type,
+                            Provider(
+                                constructor=actual_constructor,
+                                return_type=annotation.interface_type,
+                                dependencies=self._get_dependencies(actual_constructor),
+                            ),
                         )
                 # Early return for valid tuple format
                 return
 
         # Regular constructor (including invalid tuple formats)
         self._register_constructor_internal(constructor)
+
+    def _register(self, type_: Any, provider: Provider) -> None:
+        """Bind a type to a provider, refusing to shadow an existing binding."""
+        from .validation import DuplicateProviderError
+
+        existing = self._providers.get(type_)
+        if existing is not None and existing.constructor is not provider.constructor:
+            raise DuplicateProviderError(type_, existing, provider)
+        self._providers[type_] = provider
 
     def _register_constructor_internal(self, constructor: Callable[..., Any]) -> None:
         """Internal method to register a constructor function."""
@@ -83,14 +112,13 @@ class Provide(Component):
             dependencies=dependencies,
         )
 
-        self._providers[return_annotation] = provider
+        self._register(return_annotation, provider)
 
-        # Handle generic types like AsyncIterator[T] - also register for T
-        if (
-            hasattr(return_annotation, "__origin__")
-            and return_annotation.__origin__ is not None
-        ):
-            # This is a generic type, extract the inner type
+        # A resource provider is declared as AsyncIterator[T] but hands out a T,
+        # so register it under T as well. Only for the iterator family: unwrapping
+        # every generic would make Annotated[str, "server"] claim plain str too,
+        # which is the opposite of why Annotated is used here.
+        if get_origin(return_annotation) in _RESOURCE_ORIGINS:
             args = getattr(return_annotation, "__args__", [])
             if args:
                 inner_type = args[0]
@@ -101,7 +129,7 @@ class Provide(Component):
                         return_type=inner_type,
                         dependencies=dependencies,
                     )
-                    self._providers[inner_type] = inner_provider
+                    self._register(inner_type, inner_provider)
 
     def _get_dependencies(self, constructor: Callable[..., Any]) -> list[type[Any]]:
         """Extract dependency types from constructor signature."""
