@@ -342,7 +342,7 @@ def create_app() -> App:
             new_console_metrics,
         ])
     
-    return App(
+    return Component(
         Provide(*providers),
         Supply(config),
     )
