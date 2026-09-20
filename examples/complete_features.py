@@ -11,7 +11,7 @@ This example demonstrates all the new functionality:
 import asyncio
 from typing import Annotated
 
-from di_fx import Component, Invoke, Provide
+from di_fx import App, Component, Invoke, Provide
 
 # Use Annotated types to create distinct types for dependency injection
 DatabaseType = Annotated[str, "database"]
@@ -83,10 +83,10 @@ async def main() -> None:
     print("Starting di_fx application with all features...")
 
     # Create the application with all components
-    app = Component(create_app())
+    app = App(create_app())
 
     # Use the application lifecycle
-    async with app.lifecycle():
+    async with app:
         print("Application is running...")
 
         # Resolve dependencies to verify they work

@@ -5,8 +5,10 @@ from dataclasses import dataclass
 import pytest
 
 from di_fx import (
+    App,
     Component,
     DotGraph,
+    DuplicateProviderError,
     Invoke,
     Lifecycle,
     Provide,
@@ -14,7 +16,6 @@ from di_fx import (
     Supply,
     ValidationError,
 )
-from di_fx.validation import DuplicateProviderError
 
 
 @dataclass
@@ -35,7 +36,7 @@ class TestSatisfiability:
     """Everything the resolver can supply has to count as satisfied."""
 
     def test_supplied_value_satisfies_a_dependency(self):
-        app = Component(Supply(Config()), Provide(new_database))
+        app = App(Supply(Config()), Provide(new_database))
 
         app.validate()
 
@@ -43,16 +44,16 @@ class TestSatisfiability:
         def new_service(lifecycle: Lifecycle) -> Database:
             return Database(Config())
 
-        Component(Provide(new_service)).validate()
+        App(Provide(new_service)).validate()
 
     def test_shutdowner_and_dotgraph_satisfy_a_dependency(self):
         def new_service(shutdowner: Shutdowner, graph: DotGraph) -> Database:
             return Database(Config())
 
-        Component(Provide(new_service)).validate()
+        App(Provide(new_service)).validate()
 
     def test_missing_dependency_is_reported(self):
-        app = Component(Provide(new_database))
+        app = App(Provide(new_database))
 
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
@@ -64,7 +65,7 @@ class TestSatisfiability:
         def use(database: Database) -> None:
             pass
 
-        app = Component(Invoke(use))
+        app = App(Invoke(use))
 
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
@@ -91,7 +92,7 @@ class TestDuplicates:
             return 2
 
         with pytest.raises(DuplicateProviderError, match="int"):
-            Component(Provide(one), Provide(two))
+            App(Provide(one), Provide(two))
 
 
 class TestCycles:
@@ -108,7 +109,7 @@ class TestCycles:
         def new_b(a: A) -> B:
             return B()
 
-        app = Component(Provide(new_a, new_b))
+        app = App(Provide(new_a, new_b))
 
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
@@ -122,7 +123,7 @@ class TestCycles:
             return other
 
         with pytest.raises(ValidationError):
-            Component(Provide(new_thing)).validate()
+            App(Provide(new_thing)).validate()
 
     def test_diamond_is_not_a_cycle(self):
         class Leaf:
@@ -149,7 +150,7 @@ class TestCycles:
         def new_root(left: Left, right: Right) -> Root:
             return Root()
 
-        Component(Provide(new_leaf, new_left, new_right, new_root)).validate()
+        App(Provide(new_leaf, new_left, new_right, new_root)).validate()
 
     def test_only_the_nodes_on_the_cycle_are_named(self):
         class Upstream:
@@ -170,7 +171,7 @@ class TestCycles:
         def new_upstream(a: A) -> Upstream:
             return Upstream()
 
-        app = Component(Provide(new_a, new_b, new_upstream))
+        app = App(Provide(new_a, new_b, new_upstream))
 
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
@@ -190,7 +191,7 @@ class TestCycles:
         def new_b(a: A) -> B:
             return B()
 
-        app = Component(Provide(new_a, new_b), validate=False)
+        app = App(Provide(new_a, new_b), validate=False)
 
         with pytest.raises(ValidationError, match="Circular"):
             await app.resolve(A)
@@ -201,7 +202,7 @@ class TestAutomaticValidation:
         def use(database: Database) -> None:
             pass
 
-        app = Component(Invoke(use))
+        app = App(Invoke(use))
 
         with pytest.raises(ValidationError):
             await app.start()
@@ -210,7 +211,7 @@ class TestAutomaticValidation:
         def use(database: Database) -> None:
             pass
 
-        app = Component(Invoke(use), validate=False)
+        app = App(Invoke(use), validate=False)
 
         # Without validation the failure surfaces later, from the resolver.
         with pytest.raises(ValidationError, match="No provider"):
@@ -223,11 +224,9 @@ class TestValidateAndResolveAgree:
     @pytest.mark.parametrize(
         "build",
         [
-            lambda: Component(Supply(Config()), Provide(new_database)),
-            lambda: Component(Provide(new_database)),
-            lambda: Component(
-                Component(Supply(Config())), Component(Provide(new_database))
-            ),
+            lambda: App(Supply(Config()), Provide(new_database)),
+            lambda: App(Provide(new_database)),
+            lambda: App(Component(Supply(Config())), Component(Provide(new_database))),
         ],
     )
     async def test_agreement(self, build):

@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import Component, Invoke, Provide
+from di_fx import App, Invoke, Provide
 
 
 class TestInvoke:
@@ -20,7 +20,7 @@ class TestInvoke:
         invoke = Invoke(setup_routes, seed_database)
 
         assert len(invoke) == 2
-        assert len(invoke.get_invokables()) == 2
+        assert len(invoke.invokables) == 2
 
     def test_invoke_with_dependencies(self):
         """Test Invoke with functions that have dependencies."""
@@ -33,7 +33,7 @@ class TestInvoke:
 
         invoke = Invoke(setup_routes, seed_database)
 
-        invokables = invoke.get_invokables()
+        invokables = invoke.invokables
         assert len(invokables) == 2
 
         # Check dependencies are extracted
@@ -63,22 +63,17 @@ class TestInvoke:
             execution_order.append(f"seed_database({config})")
             return "Database seeded"
 
-        app = Component(
+        app = App(
             Provide(create_server, create_config),
             Invoke(setup_routes, seed_database),
         )
 
-        # The invokable functions should have been executed during startup
-        # They execute when the context manager exits and start() is called
-        assert len(execution_order) == 0  # Not executed yet
+        assert len(execution_order) == 0  # nothing runs before the app starts
 
-        async with app.lifecycle():
-            # Still not executed yet - they execute when start() is called
-            assert len(execution_order) == 0
-            pass
-
-        # After exiting the context, invoke functions should have been executed
-        assert len(execution_order) == 2
+        async with app:
+            # Entering the context is the initialization phase: the invokables
+            # have run and their dependencies have been constructed.
+            assert len(execution_order) == 2
         assert "setup_routes(HTTP Server, {'port': 8000})" in execution_order
         assert "seed_database({'port': 8000})" in execution_order
 
@@ -102,18 +97,13 @@ class TestInvoke:
             execution_order.append(f"seed_database({config})")
             return "Database seeded"
 
-        app = Component(
+        app = App(
             Provide(create_server, create_config),
             Invoke(setup_routes, seed_database),
         )
 
-        async with app.lifecycle():
-            # Still not executed yet - they execute when start() is called
-            assert len(execution_order) == 0
-            pass
-
-        # After exiting the context, invoke functions should have been executed
-        assert len(execution_order) == 2
+        async with app:
+            assert len(execution_order) == 2
         assert "setup_routes(Async HTTP Server, {'port': 8000})" in execution_order
         assert "seed_database({'port': 8000})" in execution_order
 
@@ -127,12 +117,12 @@ class TestInvoke:
         def failing_function(server: str):
             raise RuntimeError("Invoke function failed")
 
-        app = Component(
+        app = App(
             Provide(create_server),
             Invoke(failing_function),
         )
 
         # Should raise the error from the failing invokable function
         with pytest.raises(RuntimeError, match="Invoke function failed"):
-            async with app.lifecycle():
+            async with app:
                 pass

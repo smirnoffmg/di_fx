@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from di_fx import Component, Hook, Lifecycle, Provide, Supply
+from di_fx import App, Hook, Invoke, Lifecycle, Provide, Supply
 
 
 @dataclass
@@ -69,7 +69,7 @@ class WorkerManager:
                 Hook(on_start=worker.start, on_stop=worker.stop, name=f"worker_{i}")
             )
 
-    async def start_workers(self, app: Component) -> None:
+    async def start_workers(self, app: App) -> None:
         """Start all background workers as asyncio tasks."""
         for worker in self.workers:
             # Create and track the worker task
@@ -86,24 +86,27 @@ async def new_worker_manager(config: Config, lifecycle: Lifecycle) -> WorkerMana
     return WorkerManager(config, lifecycle)
 
 
+def register_workers(manager: WorkerManager) -> None:
+    """Pull the worker manager into the graph.
+
+    This runs during initialization, which is where the manager's constructor is
+    still free to append its lifecycle hooks. By the time the context manager has
+    been entered the hooks have already run.
+    """
+    print(f"{len(manager.workers)} workers registered")
+
+
 async def main() -> None:
     """Main application function demonstrating asyncio integration."""
-    # Create the application
-    app = Component(
+    app = App(
         Provide(new_worker_manager),
         Supply(Config(name="AsyncApp", worker_count=2)),
+        Invoke(register_workers),
     )
 
-    # Use the application lifecycle
-    async with app.lifecycle():
-        print("Application started!")
-
-        # Resolve dependencies (this registers the lifecycle hooks)
-        await app.resolve(WorkerManager)
-
-        print("Background workers registered. Running for 3 seconds...")
+    async with app:
+        print("Application started! Running for 3 seconds...")
         await asyncio.sleep(3)
-
         print("Stopping application...")
 
     print("Application stopped!")

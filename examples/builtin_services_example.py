@@ -8,7 +8,7 @@ DotGraph and Shutdowner services.
 import asyncio
 from typing import Annotated
 
-from di_fx import Component, DotGraph, Invoke, Provide, Shutdowner
+from di_fx import App, Component, DotGraph, Invoke, Provide, Shutdowner
 
 # Use Annotated types to create distinct types
 DatabaseType = Annotated[str, "database"]
@@ -125,7 +125,7 @@ async def main() -> None:
     print("Starting di_fx application with built-in services...")
 
     # Create the application with all components
-    app = Component(create_app())
+    app = App(create_app())
 
     # Validate the dependency graph before starting
     try:
@@ -137,7 +137,7 @@ async def main() -> None:
         return
 
     # Use the application lifecycle
-    async with app.lifecycle():
+    async with app:
         print("Application is running...")
 
         # Resolve dependencies to verify they work
@@ -174,10 +174,10 @@ async def demonstrate_shutdowner() -> None:
 
         return f"Shutdowner configured for {service}"
 
-    app = Component(Provide(create_service), Invoke(test_shutdown_function))
+    app = App(Provide(create_service), Invoke(test_shutdown_function))
 
     # Run briefly to show Shutdowner injection
-    async with app.lifecycle():
+    async with app:
         await asyncio.sleep(0.05)
 
     print("Shutdowner demonstration complete!")

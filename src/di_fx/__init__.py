@@ -1,58 +1,48 @@
 """
-Modern, async-first dependency injection for Python inspired by Uber-Fx.
+Dependency injection and application lifecycle for asyncio, inspired by Uber-Fx.
 
-This package provides a function-centric, event-loop native dependency
-injection framework with superior performance and seamless async integration.
+Build an application from constructor functions, start it in dependency order and
+shut it down in reverse.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "di_fx contributors"
 
-from typing import Annotated
-
 from .annotate import Annotate, As
-from .app_orchestrator import AppOrchestrator
-from .builtin_service_manager import BuiltinServiceManager
-from .component import Component
-from .component_processor import ComponentProcessor
-from .component_processor_manager import ComponentProcessorManager
-from .dependency_resolver import DependencyResolver
+from .app import App
 from .dotgraph import DotGraph
-from .error_handler import ErrorHandler
-from .invokable_executor import InvokableExecutor
-from .invoke import Invoke
+from .errors import (
+    CircularDependencyError,
+    DiFxError,
+    DuplicateProviderError,
+    HookTimeoutError,
+    LifecycleError,
+    MissingProviderError,
+    ValidationError,
+)
 from .lifecycle import Hook, Lifecycle
-from .lifecycle_manager import LifecycleManager
 from .named import Named
-from .provide import Provide
+from .registrations import Component, Invoke, Provide, Supply
 from .shutdowner import Shutdowner
-from .state_manager import StateManager
-from .supply import Supply
-from .validation import ValidationError
-from .validation_manager import ValidationManager
 
 __all__ = [
     "Annotate",
-    "Annotated",
+    "App",
     "As",
-    "AppOrchestrator",
-    "BuiltinServiceManager",
+    "CircularDependencyError",
     "Component",
-    "ComponentProcessor",
-    "ComponentProcessorManager",
-    "DependencyResolver",
-    "ErrorHandler",
+    "DiFxError",
+    "DotGraph",
+    "DuplicateProviderError",
+    "Hook",
+    "HookTimeoutError",
     "Invoke",
-    "InvokableExecutor",
+    "Lifecycle",
+    "LifecycleError",
+    "MissingProviderError",
     "Named",
     "Provide",
-    "Supply",
-    "Lifecycle",
-    "Hook",
-    "LifecycleManager",
-    "StateManager",
-    "ValidationError",
-    "ValidationManager",
-    "DotGraph",
     "Shutdowner",
+    "Supply",
+    "ValidationError",
 ]

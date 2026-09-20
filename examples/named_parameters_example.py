@@ -8,7 +8,7 @@ multiple providers of the same type with different names.
 import asyncio
 from typing import Annotated
 
-from di_fx import Component, Invoke, Named, Provide
+from di_fx import App, Component, Invoke, Named, Provide
 
 # Use Annotated types to create distinct types
 DatabaseType = Annotated[str, "database"]
@@ -170,7 +170,7 @@ async def main() -> None:
     print("=" * 60)
 
     # Create the application with all components
-    app = Component(create_app())
+    app = App(create_app())
 
     # Validate the dependency graph before starting
     try:
@@ -186,7 +186,7 @@ async def main() -> None:
     print("=" * 60)
 
     # Use the application lifecycle
-    async with app.lifecycle():
+    async with app:
         print("Application is running...")
 
         # Resolve dependencies to verify they work

@@ -13,7 +13,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from di_fx import Component, Hook, Lifecycle, Provide, Supply
+from di_fx import App, Hook, Invoke, Lifecycle, Provide, Supply
 
 
 @dataclass
@@ -103,10 +103,23 @@ def new_background_worker(
     return worker
 
 
+async def run_application(
+    user_service: UserService, background_worker: BackgroundWorker
+) -> None:
+    """Invoke functions are the roots of the graph.
+
+    Asking for a type here is what causes it to be built, and it happens during
+    initialization -- while constructors are still allowed to append lifecycle
+    hooks. Resolving after the application has started is too late for that.
+    """
+    user = await user_service.get_user("123")
+    print(f"User: {user}")
+    print(f"Background worker: {background_worker.get_name()}")
+
+
 async def main() -> None:
     """Main application function."""
-    # Create the application
-    app = Component(
+    app = App(
         Provide(
             new_database,
             new_user_service,
@@ -115,21 +128,10 @@ async def main() -> None:
         Supply(
             DatabaseConfig(url="postgresql://localhost/mydb", pool_size=5),
         ),
+        Invoke(run_application),
     )
 
-    # Use the application
-    async with app.lifecycle():
-        print("Application started!")
-
-        # Resolve dependencies
-        user_service = await app.resolve(UserService)
-        background_worker = await app.resolve(BackgroundWorker)
-
-        # Use the service
-        user = await user_service.get_user("123")
-        print(f"User: {user}")
-        print(f"Background worker: {background_worker.get_name()}")
-
+    async with app:
         print("Application running...")
         await asyncio.sleep(1)  # Simulate work
 
