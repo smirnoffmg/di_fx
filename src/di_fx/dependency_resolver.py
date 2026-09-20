@@ -42,6 +42,10 @@ class DependencyResolver:
         self._builtin_dotgraph: Any = None
         self._builtin_shutdowner: Any = None
 
+        # Performance optimization: Cache resolution paths to avoid recalculations
+        self._resolution_path_cache: dict[type[Any], list[type[Any]]] = {}
+        self._async_generator_cache: dict[type[Any], Any] = {}
+
     async def resolve(self, type_: type[T]) -> T:
         """Resolve a dependency of the specified type."""
         if type_ in self._instances:
@@ -119,10 +123,12 @@ class DependencyResolver:
 
     async def _create_instance(self, provider: Any) -> Any:
         """Create an instance from a provider."""
-        # Resolve dependencies
-        dependencies: list[Any] = []
-        if provider.dependencies:
-            for dep_type in provider.dependencies:
+        # Performance optimization: Check if we have a cached resolution path
+        provider_type = provider.return_type
+        if provider_type in self._resolution_path_cache:
+            # Use cached dependencies to avoid recalculation
+            dependencies = []
+            for dep_type in self._resolution_path_cache[provider_type]:
                 if dep_type in self._instances:
                     dependencies.append(self._instances[dep_type])
                 elif dep_type in self._values:
@@ -132,6 +138,23 @@ class DependencyResolver:
                 else:
                     # Recursively resolve dependency
                     dependencies.append(await self.resolve(dep_type))
+        else:
+            # Calculate dependencies and cache the path for future use
+            dependencies = []
+            if provider.dependencies:
+                for dep_type in provider.dependencies:
+                    if dep_type in self._instances:
+                        dependencies.append(self._instances[dep_type])
+                    elif dep_type in self._values:
+                        dependencies.append(self._values[dep_type].value)
+                    elif dep_type == Lifecycle:
+                        dependencies.append(self._lifecycle)
+                    else:
+                        # Recursively resolve dependency
+                        dependencies.append(await self.resolve(dep_type))
+
+            # Always cache the resolution path for this provider type (even if empty)
+            self._resolution_path_cache[provider_type] = provider.dependencies
 
         # Create instance
         instance = provider.constructor(*dependencies)
@@ -142,8 +165,13 @@ class DependencyResolver:
 
         # Handle async generators (for lifecycle management)
         if hasattr(instance, "__aiter__"):
-            # Store the original generator for lifecycle management
-            generator = instance
+            # Performance optimization: Cache async generators to avoid recreation
+            if provider_type in self._async_generator_cache:
+                generator = self._async_generator_cache[provider_type]
+            else:
+                generator = instance
+                self._async_generator_cache[provider_type] = generator
+
             # Get the first yielded value
             async for value in generator:
                 instance = value
@@ -161,3 +189,16 @@ class DependencyResolver:
         """Set the shutdown callback for the built-in Shutdowner service."""
         if self._builtin_shutdowner is not None:
             self._builtin_shutdowner._shutdown_callback = callback
+
+    def clear_caches(self) -> None:
+        """Clear all caches (useful for testing and memory management)."""
+        self._resolution_path_cache.clear()
+        self._async_generator_cache.clear()
+
+    def get_cache_stats(self) -> dict[str, int]:
+        """Get statistics about cache usage."""
+        return {
+            "resolution_paths": len(self._resolution_path_cache),
+            "async_generators": len(self._async_generator_cache),
+            "instances": len(self._instances),
+        }
