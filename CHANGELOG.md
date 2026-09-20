@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-20
+
+### Added
+
+- **Errors say who needed the missing thing.** A failed resolution reports the chain
+  back to the invokable that started it, naming each constructor and the module it
+  was declared in:
+
+  ```
+  No provider registered for type Config
+    required by Database (new_database in module "storage")
+    required by Worker (new_worker)
+    required by invokable run
+  ```
+
+  Validation errors name the constructor and module too. This is what the name on a
+  `Component` is for; until now it was accepted and never used.
+- **`examples/queue_consumer.py`** and [docs/writing_a_worker.md](docs/writing_a_worker.md):
+  the case di_fx is for, end to end — resources, background work, invokables as the
+  roots of the graph, programmatic shutdown, and what happens when each of them fails.
+- Debug logging for the initialization and execution phases, and for each hook as it
+  starts and stops. Nothing is logged above DEBUG except that the application started
+  and is stopping.
+- `Lifecycle.entry_count()`: hooks and resources together, where `len()` counts hooks.
+
+### Fixed
+
+- Nothing. `DotGraph` turned out to work; it was simply untested, and now has tests.
+  Coverage 95% -> 97.5%.
+
 ## [0.3.0] - 2026-09-20
 
 Structural release. The public API changes; behaviour does not, except where noted.

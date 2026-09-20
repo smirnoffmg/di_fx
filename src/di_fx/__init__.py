@@ -5,7 +5,7 @@ Build an application from constructor functions, start it in dependency order an
 shut it down in reverse.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "di_fx contributors"
 
 from .annotate import Annotate, As

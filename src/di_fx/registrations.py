@@ -23,10 +23,17 @@ class Provider:
     constructor: Callable[..., Any]
     return_type: Any
     dependencies: tuple[Any, ...] = ()
+    module: str | None = None
 
     @property
     def name(self) -> str:
         return str(getattr(self.constructor, "__name__", self.constructor))
+
+    def where(self) -> str:
+        """How to describe this provider in an error message."""
+        if self.module is None:
+            return self.name
+        return f'{self.name} in module "{self.module}"'
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,7 @@ class Invokable:
     func: Callable[..., Any]
     name: str
     dependencies: tuple[Any, ...] = ()
+    module: str | None = None
 
 
 def dependencies_of(func: Callable[..., Any]) -> tuple[Any, ...]:

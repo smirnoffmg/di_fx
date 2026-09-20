@@ -73,14 +73,24 @@ class App:
             self.validate()
 
         try:
+            logger.debug(
+                "Initializing: %d invokable(s), %d provider(s)",
+                len(self._graph.invokables),
+                len(self._graph.providers),
+            )
             for invokable in self._graph.invokables:
                 await self._invoke(invokable)
+
+            logger.debug(
+                "Starting: %d lifecycle entr(ies)", self._lifecycle.entry_count()
+            )
             await self._lifecycle.start()
         except BaseException:
             await self._cleanup_after_failed_start()
             raise
 
         self._started = True
+        logger.info("Application started")
 
     async def stop(self) -> None:
         """Cancel tracked tasks, then unwind the lifecycle."""
@@ -89,6 +99,7 @@ class App:
 
         self._stopped = True
         self._started = False
+        logger.info("Application stopping")
         await self._cancel_tasks()
         await self._lifecycle.stop()
 
@@ -124,7 +135,9 @@ class App:
         return self._started
 
     async def _invoke(self, invokable: Any) -> None:
-        dependencies = [await self.resolve(dep) for dep in invokable.dependencies]
+        logger.debug("Invoking %s", invokable.name)
+        with self._resolver.resolving_for(f"invokable {invokable.name}"):
+            dependencies = [await self.resolve(dep) for dep in invokable.dependencies]
         try:
             result = invokable.func(*dependencies)
         except Exception as error:

@@ -237,6 +237,7 @@ assembles a container end to end, so keep them working.
 
 ## Further reading
 
+- [Writing a worker](docs/writing_a_worker.md) — the case di_fx is for, end to end
 - [di_fx and Uber-Fx](docs/uber_fx_comparison.md) — what carried over, what changed,
   and what is deliberately missing
 - [Best practices](docs/best_practices.md)

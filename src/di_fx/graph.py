@@ -5,7 +5,7 @@ dependency can be satisfied. The resolver and the validator both use that
 predicate, so they cannot disagree about what a valid graph is.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .dotgraph import DotGraph
@@ -73,9 +73,10 @@ def flatten(*registrations: Any) -> Graph:
     values: dict[Any, Value] = {}
     invokables: list[Invokable] = []
 
-    def visit(registration: Any) -> None:
+    def visit(registration: Any, module: str | None) -> None:
         if isinstance(registration, Provide):
             for provider in registration:
+                provider = replace(provider, module=module)
                 existing = providers.get(provider.return_type)
                 if (
                     existing is not None
@@ -89,15 +90,17 @@ def flatten(*registrations: Any) -> Graph:
             for value in registration:
                 values[value.type_] = value
         elif isinstance(registration, Invoke):
-            invokables.extend(registration)
+            invokables.extend(
+                replace(invokable, module=module) for invokable in registration
+            )
         elif isinstance(registration, Component):
             for child in registration:
-                visit(child)
+                visit(child, registration.name or module)
         else:
             raise ValueError(f"Unknown registration type: {type(registration)}")
 
     for registration in registrations:
-        visit(registration)
+        visit(registration, None)
 
     return Graph(providers, values, tuple(invokables))
 
@@ -110,9 +113,9 @@ def validate(graph: Graph) -> None:
         for dep_type in provider.dependencies:
             if not graph.can_resolve(dep_type):
                 errors.append(
-                    f"Provider {type_name(provider_type)} depends on "
-                    f"{type_name(dep_type)}, but no provider is registered for "
-                    f"{type_name(dep_type)}"
+                    f"Provider {type_name(provider_type)} ({provider.where()}) "
+                    f"depends on {type_name(dep_type)}, but no provider is "
+                    f"registered for {type_name(dep_type)}"
                 )
 
     for invokable in graph.invokables:
