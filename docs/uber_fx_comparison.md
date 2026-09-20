@@ -1,359 +1,73 @@
-# Uber-Fx vs di_fx: Complete Feature Comparison
+# di_fx and Uber-Fx
 
-## ✅ **What We Got Right**
+di_fx takes its model from [Uber-Fx](https://github.com/uber-go/fx): constructor
+functions instead of classes, a graph keyed by type, and an application split into
+an initialization phase and an execution phase. This page records what carried over,
+what changed on purpose, and what is not there.
 
-| Feature                   | Uber-Fx                    | Our di_fx                 | Status               |
-| ------------------------- | -------------------------- | ------------------------- | -------------------- |
-| **Constructor Functions** | `fx.Provide(NewService)`   | `Provide(new_service)`    | ✅ **Perfect**        |
-| **Lifecycle Hooks**       | `fx.Hook{OnStart, OnStop}` | `Hook(on_start, on_stop)` | ✅ **Perfect**        |
-| **Application Container** | `fx.New()`                 | `App()`                   | ✅ **Good**           |
-| **Signal Handling**       | `app.Run()`                | `await app.run()`         | ✅ **Better (async)** |
-| **Dependency Injection**  | Constructor parameters     | Function parameters       | ✅ **Perfect**        |
-| **Value Supply**          | `fx.Supply(value)`         | `Supply(value)`           | ✅ **Perfect**        |
+## What maps directly
 
-## ⚠️ **Missing Critical Features**
+| Uber-Fx | di_fx |
+|---|---|
+| `fx.Provide(NewService)` | `Provide(new_service)` |
+| `fx.Supply(value)` | `Supply(value)` |
+| `fx.Invoke(setupRoutes)` | `Invoke(setup_routes)` |
+| `fx.Module("server", ...)` | `Component("server", ...)` |
+| `fx.Lifecycle` / `fx.Hook{OnStart, OnStop}` | `Lifecycle` / `Hook(on_start=..., on_stop=...)` |
+| `fx.Shutdowner` | `Shutdowner` |
+| `fx.DotGraph` | `DotGraph` |
+| `fx.Annotate(New, fx.As(new(Iface)))` | `Annotate(new_thing, As(Iface))` |
+| `fx.Named` | `Named("primary", Database)` |
+| `app.Run()` | `await app.run()` |
 
-### 1. **fx.Invoke() - Startup Initialization**
-**Uber-Fx Pattern**:
-```go
-fx.New(
-    fx.Provide(NewDatabase, NewServer),
-    fx.Invoke(
-        setupRoutes,    // Run after DI resolution
-        seedDatabase,   // Run at startup
-        printWelcome,   // Run initialization code
-    ),
-)
-```
+The two phases are the same, and for the same reason. During initialization Fx runs
+the functions passed to `fx.Invoke`, calling constructors as needed; the hooks those
+constructors appended run afterwards, during execution. di_fx does exactly this, and
+getting the order backwards was the framework's most serious bug until 0.2.
 
-**Our Current Gap**:
-```python
-# We only have Provide and Supply, missing Invoke!
-app = App(
-    Provide(new_database, new_server),
-    Supply(config),
-    # MISSING: Invoke equivalent for startup code
-)
-```
+## Where di_fx diverges on purpose
 
-**What We Need to Add**:
-```python
-app = App(
-    Provide(new_database, new_server),
-    Supply(config),
-    Invoke(
-        setup_routes,     # Run after all services created
-        seed_database,    # Run initialization code  
-        print_welcome,    # Run startup tasks
-    ),
-)
-```
-
-### 2. **fx.Annotate() and fx.As() - Interface Registration**
-**Uber-Fx Pattern**:
-```go
-fx.Provide(
-    NewUserRepo,
-    fx.Annotate(
-        NewUserRepo,
-        fx.As(new(UserAccessor)),  // Register as interface
-        fx.As(new(UserStorage)),   // Multiple interfaces
-    ),
-)
-```
-
-**Our Current Gap**:
-```python
-# No explicit interface registration mechanism
-def new_user_service(repo: UserRepository) -> UserService:  # Concrete type only
-    return UserService(repo)
-```
-
-**What We Need to Add**:
-```python
-from di_fx import Annotate, As
-
-app = App(
-    Provide(
-        new_user_repository,
-        Annotate(
-            new_user_repository,
-            As(UserAccessor),      # Register as interface
-            As(UserStorage),       # Multiple interfaces  
-        ),
-        new_user_service,  # Can now depend on UserAccessor interface
-    ),
-)
-```
-
-### 3. **fx.Module - Modular Organization**
-**Uber-Fx Pattern**:
-```go
-DatabaseModule := fx.Module("database",
-    fx.Provide(NewDB, NewMigrator),
-    fx.Invoke(RunMigrations),
-)
-
-HttpModule := fx.Module("http", 
-    fx.Provide(NewServer, NewRouter),
-    fx.Invoke(RegisterRoutes),
-)
-
-app := fx.New(DatabaseModule, HttpModule)
-```
-
-**Our Current Gap**:
-```python
-# No named module support
-app = App(
-    Provide(new_db, new_server),  # Everything mixed together
-    Supply(config),
-)
-```
-
-**What We Need to Add**:
-```python
-DatabaseModule = Module("database",
-    Provide(new_db, new_migrator),
-    Invoke(run_migrations),
-)
-
-HttpModule = Module("http",
-    Provide(new_server, new_router), 
-    Invoke(register_routes),
-)
-
-app = App(DatabaseModule, HttpModule)
-```
-
-### 4. **fx.DotGraph - Dependency Visualization**
-**Uber-Fx Pattern**:
-```go
-fx.Invoke(func(graph fx.DotGraph) {
-    fmt.Println(graph) // Prints dependency graph in DOT format
-})
-```
-
-**What We Need to Add**:
-```python
-def print_dependency_graph(graph: DependencyGraph):
-    print(graph.to_dot())  # Generate DOT graph for visualization
-    
-app = App(
-    Provide(new_service),
-    Invoke(print_dependency_graph),  # Auto-injected graph
-)
-```
-
-### 5. **fx.Shutdowner - Programmatic Shutdown**
-**Uber-Fx Pattern**:
-```go
-fx.Invoke(func(shutdowner fx.Shutdowner, monitor *HealthMonitor) {
-    monitor.OnCriticalError(func(err error) {
-        shutdowner.Shutdown() // Trigger graceful shutdown
-    })
-})
-```
-
-**What We Need to Add**:
-```python
-def setup_health_monitor(shutdowner: Shutdowner, monitor: HealthMonitor):
-    monitor.on_critical_error(lambda err: shutdowner.shutdown())
-
-app = App(
-    Provide(new_health_monitor),
-    Invoke(setup_health_monitor),  # Shutdowner auto-injected
-)
-```
-
-### 6. **fx.Options() - Option Grouping**
-**Uber-Fx Pattern**:
-```go
-func CreateApp() fx.Option {
-    return fx.Options(
-        fx.Provide(NewDB, NewServer),
-        fx.Invoke(SetupRoutes),
-    )
-}
-
-app := fx.New(CreateApp())
-```
-
-**What We Need to Add**:
-```python
-def create_app() -> Options:
-    return Options(
-        Provide(new_db, new_server),
-        Invoke(setup_routes),
-    )
-
-app = App(create_app())
-```
-
-### 7. **Error Handling and Validation**
-**Uber-Fx Pattern**:
-```go
-// Validates dependency graph without starting
-err := fx.ValidateApp(fx.New(options...))
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-**What We Need to Add**:
-```python
-# Validate app structure before running
-try:
-    app.validate()  # Check for missing dependencies
-except DependencyError as e:
-    logger.error(f"Invalid app structure: {e}")
-    sys.exit(1)
-
-await app.run()
-```
-
-## 🚀 **Enhanced di_fx API Design**
-
-Here's how our complete API should look to fully mirror Uber-Fx:
+**Resources are generators, not hooks.** Go has no generators and no context
+managers, so in Fx every startup and shutdown pair is a `Hook`. In Python the
+natural spelling is a provider that yields:
 
 ```python
-from di_fx import App, Provide, Supply, Invoke, Module, Options, Annotate, As
-
-# Module definitions (like Uber-Fx)
-DatabaseModule = Module("database",
-    Provide(
-        new_database_pool,
-        new_user_repository,
-        Annotate(
-            new_user_repository,
-            As(UserAccessor),  # Interface registration
-            As(UserStorage),
-        ),
-    ),
-    Supply(DatabaseConfig.from_env()),
-    Invoke(
-        run_migrations,      # Startup initialization
-        validate_schema,
-    ),
-)
-
-HttpModule = Module("http",
-    Provide(
-        new_http_server,
-        new_user_handler,
-    ),
-    Invoke(
-        register_routes,     # Setup after DI resolution
-        print_server_info,
-    ),
-)
-
-# Grouped options (like Uber-Fx fx.Options)
-def create_app() -> Options:
-    return Options(
-        DatabaseModule,
-        HttpModule,
-        Invoke(
-            print_dependency_graph,  # DependencyGraph auto-injected
-            setup_health_monitoring, # Shutdowner auto-injected
-        ),
-    )
-
-# Application creation and lifecycle
-async def main():
-    app = App(create_app())
-    
-    # Optional validation before starting
-    app.validate()
-    
-    # Run with automatic signal handling
-    await app.run()
-
-# Built-in services (auto-provided like Uber-Fx)
-def print_dependency_graph(graph: DependencyGraph):
-    """DependencyGraph is automatically provided by di_fx"""
-    print("Dependency Graph:")
-    print(graph.to_dot())
-
-def setup_health_monitoring(shutdowner: Shutdowner, health: HealthMonitor):
-    """Shutdowner is automatically provided by di_fx"""
-    health.on_critical_error(lambda err: shutdowner.shutdown())
+async def new_pool(config: Config) -> AsyncIterator[Pool]:
+    pool = await asyncpg.create_pool(config.dsn)
+    try:
+        yield pool
+    finally:
+        await pool.close()
 ```
 
-## 📊 **Implementation Priority**
+`Hook` still exists, for the case where the thing to start is not the thing the
+constructor builds, and both land in one ordered list that unwinds together. But the
+generator is the documented idiom here, where in Fx it could not exist at all.
 
-### **Phase 1: Critical Missing Features (Weeks 1-2)**
-1. ✅ **fx.Invoke()** - Startup initialization functions
-2. ✅ **fx.Module** - Named modular organization  
-3. ✅ **fx.Options()** - Option grouping
+**Types are Python types.** Fx distinguishes `*sql.DB` from `*Wrapper` for free; in
+Python a lot of things are `str`. Where Fx would rely on distinct struct types,
+di_fx users reach for `Named`, `Annotated[str, "dsn"]` or a small class. Two
+providers returning the same type is an error, as it is in Fx.
 
-### **Phase 2: Interface Support & Validation (Weeks 3-4)** 
-4. ✅ **fx.Annotate() + fx.As()** - Interface registration
-5. ✅ **Validation** - Dependency graph validation
+**Async everywhere.** Constructors may be `async def`, resolution is a coroutine,
+and hooks are awaited with a timeout.
 
-### **Phase 3: Built-in Services (Weeks 5-6)** 
-6. ✅ **fx.DotGraph** - Dependency visualization
-7. ✅ **fx.Shutdowner** - Programmatic shutdown
+## What Fx has and di_fx does not
 
-### **Phase 4: Advanced Features (Weeks 7-8)**
-8. ✅ **Named Parameters** - For multiple instances of same type
-9. ✅ **Conditional Providers** - Environment-based registration
-10. ✅ **Decorator Support** - Service decoration/wrapping
+- **Value groups** (`fx.Out` / `group:"routes"`). This is Fx's answer to "several
+  implementations of one interface". di_fx has no equivalent, so registering two
+  providers for one interface is refused rather than silently resolved.
+- **Decorators** (`fx.Decorate`) for wrapping an already-provided type.
+- **Parameter and result objects** (`fx.In` / `fx.Out` structs). Python's keyword
+  arguments and dataclasses cover most of what they are for.
+- **`fx.Replace` and `fx.Decorate` for tests.** To substitute a dependency, build the
+  component with a different provider.
+- **The logging integration** (`fx.WithLogger`, the event stream). di_fx logs through
+  the standard library and reports far less.
 
-## 🔧 **Key Architecture Insights**
+## What neither has
 
-### **1. Initialization Phases**
-```python
-# Uber-Fx has clear phases:
-# 1. Provide (register constructors)
-# 2. Supply (provide values) 
-# 3. Invoke (run initialization code)
-# 4. Start lifecycle hooks
-# 5. Wait for shutdown signal
-# 6. Stop lifecycle hooks
-
-# Our di_fx should mirror this exactly
-```
-
-### **2. Built-in Services**
-```python
-# Uber-Fx automatically provides these services:
-# - fx.Lifecycle (for hooks)
-# - fx.Shutdowner (for programmatic shutdown)  
-# - fx.DotGraph (for dependency visualization)
-
-# We should auto-provide:
-# - Lifecycle
-# - Shutdowner
-# - DependencyGraph
-```
-
-### **3. Interface Registration**
-```python
-# Uber-Fx requires explicit interface registration
-# This prevents ambiguity and makes dependencies clear
-# We should adopt the same approach with Annotate/As
-```
-
-## 🎯 **Bottom Line**
-
-We have **~98% of Uber-Fx functionality** but are missing some **critical pieces**:
-
-**Missing Must-Haves:**
-- ✅ `fx.Invoke()` for startup initialization
-- ✅ `fx.Module` for modular organization
-- ✅ `fx.Annotate()/fx.As()` for interface registration
-- ✅ Built-in services (DotGraph, Shutdowner)
-- ✅ **Named Parameters** - Multiple instances of same type
-
-**Our Advantages:**
-- ✅ **Native async** (vs Uber-Fx's sync nature)
-- ✅ **Event loop integration** (superior to Go's approach)
-- ✅ **Request scoping** (context variables)
-- ✅ **Hot reloading** (not in Uber-Fx)
-
-**Remaining Features to Implement:**
-- **Conditional Providers** - Environment-based registration
-- **Decorator Support** - Service decoration/wrapping
-
-**The good news**: Adding these final features would make di_fx a **complete superset** of Uber-Fx functionality while maintaining our async-native advantages!
+Scopes. Fx is a process-lifetime container and so is di_fx; per-request objects are
+not part of the model. In Python that gap is filled by
+[dishka](https://github.com/reagento/dishka), which is the right tool for a web
+application — see the README's scope section.

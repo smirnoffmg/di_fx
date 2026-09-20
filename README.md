@@ -231,6 +231,13 @@ make all
 The examples under `examples/` are run in CI; they are the only thing that
 assembles a container end to end, so keep them working.
 
+## Further reading
+
+- [di_fx and Uber-Fx](docs/uber_fx_comparison.md) — what carried over, what changed,
+  and what is deliberately missing
+- [Best practices](docs/best_practices.md)
+- [Troubleshooting](docs/troubleshooting_guide.md)
+
 ## Acknowledgments
 
 The design is Uber-Fx's: constructor functions, a type-keyed graph, and a lifecycle
