@@ -4,10 +4,10 @@
 help:
 	@echo "Available commands:"
 	@echo "  format     - Format code with ruff"
-	@echo "  lint       - Run ruff linter"
+	@echo "  lint       - Run ruff linter and mypy type checker"
 	@echo "  check      - Run type checking with mypy"
 	@echo "  test       - Run tests with pytest"
-	@echo "  all        - Run format, lint, check, and test"
+	@echo "  all        - Run format, lint, and test"
 	@echo "  ci-test    - Test CI workflow locally"
 	@echo "  install-dev - Install development dependencies"
 	@echo "  clean      - Clean up cache and build files"
@@ -20,9 +20,10 @@ install-dev:
 format:
 	uv run ruff format src/ tests/ examples/
 
-# Run linter
+# Run linter and type checker
 lint:
 	uv run ruff check src/ tests/ examples/
+	uv run mypy src/
 
 # Fix linting issues automatically
 lint-fix:
@@ -37,7 +38,7 @@ test:
 	uv run pytest tests/ -v
 
 # Run all checks
-all: format lint check test
+all: format lint test
 
 # Clean up
 clean:
