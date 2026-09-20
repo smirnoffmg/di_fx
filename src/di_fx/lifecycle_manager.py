@@ -10,14 +10,13 @@ from typing import Any
 
 
 class LifecycleManager:
-    """Manages application lifecycle including tasks, async generators, and start/stop operations."""
+    """Manages the event loop and the tasks created through the application."""
 
     def __init__(self) -> None:
         """Initialize the lifecycle manager."""
         self._started = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[Any]] = set()
-        self._async_generators: dict[type[Any], Any] = {}
 
     def is_started(self) -> bool:
         """Check if the lifecycle has been started."""
@@ -47,21 +46,18 @@ class LifecycleManager:
 
         return task
 
-    def add_async_generator(self, type_: type[Any], generator: Any) -> None:
-        """Add an async generator for lifecycle management."""
-        self._async_generators[type_] = generator
-
     def start(self) -> None:
         """Mark the lifecycle as started."""
         self._started = True
 
     async def stop(self) -> None:
-        """Stop the lifecycle and cleanup resources."""
+        """Cancel every tracked task and reset the loop state."""
         if not self._started:
             return
 
-        # Cancel all running tasks
-        for task in self._tasks:
+        # Iterate a copy: awaiting a cancelled task lets its done callback
+        # discard it from self._tasks while we are still walking it.
+        for task in list(self._tasks):
             if not task.done():
                 task.cancel()
                 try:
@@ -69,23 +65,11 @@ class LifecycleManager:
                 except asyncio.CancelledError:
                     pass
 
-        # Stop async generators (close resources)
-        for generator in self._async_generators.values():
-            if hasattr(generator, "aclose"):
-                await generator.aclose()
-            elif hasattr(generator, "close"):
-                generator.close()
-
         # Reset state
         self._started = False
         self._loop = None
         self._tasks.clear()
-        self._async_generators.clear()
 
     def get_task_count(self) -> int:
         """Get the number of active tasks."""
         return len(self._tasks)
-
-    def get_generator_count(self) -> int:
-        """Get the number of async generators."""
-        return len(self._async_generators)

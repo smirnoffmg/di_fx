@@ -135,7 +135,10 @@ class ErrorHandler:
             await self._lifecycle.stop()
 
         except Exception as error:
+            # Logged and re-raised: a shutdown that fails silently leaves resources
+            # open with nothing in the caller's control flow to say so.
             await self.handle_shutdown_error(error)
+            raise
 
     def is_cleanup_needed(self) -> bool:
         """Check if cleanup is needed based on current state."""

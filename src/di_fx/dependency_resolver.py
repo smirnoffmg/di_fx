@@ -32,7 +32,7 @@ class DependencyResolver:
             values: Dictionary of type -> value mappings
             instances: Dictionary of cached instances
             lifecycle: Lifecycle instance for built-in services
-            lifecycle_manager: LifecycleManager for managing async generators
+            lifecycle_manager: LifecycleManager for tasks and the event loop
         """
         self._providers = providers
         self._values = values
@@ -148,8 +148,14 @@ class DependencyResolver:
             async for value in generator:
                 instance = value
                 break
-            # Store the generator to manage its lifecycle
-            self._lifecycle_manager.add_async_generator(type(instance), generator)
+            # Register with the lifecycle, not keyed by type: two providers can
+            # yield the same type and both resources have to be closed.
+            self._lifecycle.add_resource(
+                generator,
+                name=getattr(
+                    provider.return_type, "__name__", str(provider.return_type)
+                ),
+            )
 
         # Store instance if singleton
         if provider.singleton:

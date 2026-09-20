@@ -113,6 +113,7 @@ class TestLifecycle:
         hook = Hook(on_stop=stop_func)
         lifecycle.append(hook)
 
+        await lifecycle.start()
         await lifecycle.stop()
 
         assert lifecycle._stopped
@@ -136,6 +137,7 @@ class TestLifecycle:
         lifecycle.append(Hook(on_stop=stop2))
         lifecycle.append(Hook(on_stop=stop3))
 
+        await lifecycle.start()
         await lifecycle.stop()
 
         # Should execute in reverse order: 3, 2, 1

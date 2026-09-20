@@ -100,11 +100,12 @@ class AppOrchestrator:
         if not self._state_manager.is_running():
             return
 
-        # Use error handler for graceful shutdown
-        await self._error_handler.graceful_shutdown()
-
-        # Mark state as stopped after shutdown completes
-        self._state_manager.mark_stopped()
+        try:
+            await self._error_handler.graceful_shutdown()
+        finally:
+            # The application is down either way; a failed hook must not leave the
+            # state saying it is still running.
+            self._state_manager.mark_stopped()
 
     async def run(self) -> None:
         """Run the application with proper orchestration and graceful shutdown."""
