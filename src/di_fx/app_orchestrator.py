@@ -76,13 +76,15 @@ class AppOrchestrator:
             # Set shutdown callback in built-in service manager
             self._builtin_service_manager.set_shutdown_callback(self._request_shutdown)
 
-            # Start lifecycle hooks
-            await self._lifecycle.start()
-
-            # Execute all invokable functions using the executor
+            # Initialization: running the invokables calls the constructors they
+            # depend on, and those constructors are what append lifecycle hooks.
+            # So this has to finish before the lifecycle is allowed to start.
             await self._invokable_executor.execute_invokables(
                 self._state_manager.get_invokables(), self.resolve
             )
+
+            # Execution: run the hooks collected during initialization.
+            await self._lifecycle.start()
 
             # Mark lifecycle as started
             self._lifecycle_manager.start()
