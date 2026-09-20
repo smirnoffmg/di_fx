@@ -40,7 +40,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from di_fx import Component, Hook, Invoke, Lifecycle, Provide, Supply
+from di_fx import App, Hook, Invoke, Lifecycle, Provide, Supply
 
 
 @dataclass
@@ -85,7 +85,7 @@ def run(worker: Worker) -> None:
 
 
 async def main() -> None:
-    app = Component(
+    app = App(
         Supply(Config()),
         Provide(new_database, new_worker),
         Invoke(run),
@@ -98,8 +98,9 @@ if __name__ == "__main__":
 ```
 
 `run()` starts the application, waits for a shutdown request, then stops it.
-SIGINT and SIGTERM are handled for the duration of the run. Use `start()` and
-`stop()` directly if you would rather drive the process yourself.
+SIGINT and SIGTERM are handled for the duration of the run. `async with app:`
+starts and stops it around a block, and `start()` and `stop()` are there if you
+would rather drive the process yourself.
 
 ## The two phases
 
@@ -107,7 +108,9 @@ This is the whole model, and it is Fx's:
 
 **Initialization** — `Invoke` functions run, calling the constructors they need,
 which call the constructors *they* need, in dependency order. Constructors may
-append lifecycle hooks; nothing has started yet.
+append lifecycle hooks; nothing has started yet. This is the only window in which
+a hook can be registered, so anything that needs one belongs behind an `Invoke`
+rather than a `resolve()` call after startup.
 
 **Execution** — startup hooks run in the order they were appended. The application
 waits. Then shutdown hooks and resources unwind in the reverse of that order, which
@@ -124,7 +127,8 @@ are raised together as an `ExceptionGroup`.
 | `Provide(f, g, ...)` | Register constructors. The return annotation is the key; the parameter annotations are the dependencies. |
 | `Supply(value, ...)` | Register an already-built value under its own type. |
 | `Invoke(f, ...)` | Functions to run at startup. These are the roots of the graph. |
-| `Component(...)` | Group the above into a module. Components nest; a leading string names one: `Component("database", ...)`. |
+| `Component(...)` | Group the above into a module. Components nest to any depth; a leading string names one: `Component("database", ...)`. A component is inert — it describes, it does not run. |
+| `App(...)` | The runnable application, built from any of the above. `run()`, `start()`/`stop()`, `async with`, `resolve()`, `validate()`. |
 | `Lifecycle` / `Hook` | Ask for `Lifecycle` in a constructor and append a `Hook(on_start=..., on_stop=...)`. Each hook has a `timeout` (30s by default) that is enforced. |
 | `Named("primary", Database)` | Distinguish two providers of the same underlying type. |
 | `Annotate(f, As(Interface))` | Also register a constructor under an interface type. |
@@ -168,7 +172,7 @@ Ask for any of these in a constructor or an invokable and di_fx supplies it:
 The graph is validated when the application starts: every dependency has to be
 satisfiable by a provider, a supplied value, a built-in or the base type behind a
 `Named`, and there must be no cycles. Call `app.validate()` yourself for a
-pre-flight check, or pass `Component(..., validate=False)` to skip it.
+pre-flight check, or pass `App(..., validate=False)` to skip it.
 
 ```
 ValidationError: Validation failed with 1 error(s):
@@ -179,12 +183,12 @@ ValidationError: Validation failed with 1 error(s):
 
 ```python
 import pytest
-from di_fx import Component, Provide, Supply
+from di_fx import App, Provide, Supply
 
 
 @pytest.fixture
 def app():
-    return Component(
+    return App(
         Supply(Config(dsn="postgresql://localhost/test")),
         Provide(new_fake_database, new_worker),
     )

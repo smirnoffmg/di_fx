@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import Annotate, As, Component, Provide
+from di_fx import Annotate, App, As, Provide
 
 
 class TestAnnotate:
@@ -55,7 +55,7 @@ class TestAnnotate:
         class UserStorage:
             pass
 
-        app = Component(
+        app = App(
             Provide(Annotate(create_user_repository, As(UserAccessor), As(UserStorage)))
         )
 
@@ -79,7 +79,7 @@ class TestAnnotate:
         """
         from typing import Annotated
 
-        from di_fx.validation import DuplicateProviderError
+        from di_fx import DuplicateProviderError
 
         UserRepo = Annotated[str, "user"]
         AdminRepo = Annotated[str, "admin"]

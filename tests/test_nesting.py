@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from di_fx import Component, Invoke, Provide, Supply
+from di_fx import App, Component, Invoke, Provide, Supply
 
 
 @dataclass
@@ -21,27 +21,27 @@ def new_database(config: Config) -> Database:
 
 class TestNesting:
     async def test_two_levels(self):
-        app = Component(Component(Supply(Config()), Provide(new_database)))
+        app = App(Component(Supply(Config()), Provide(new_database)))
 
         assert isinstance(await app.resolve(Database), Database)
 
     async def test_three_levels(self):
-        app = Component(Component(Component(Supply(Config()), Provide(new_database))))
+        app = App(Component(Component(Supply(Config()), Provide(new_database))))
 
         assert isinstance(await app.resolve(Database), Database)
 
     async def test_five_levels(self):
-        inner: Component = Component(Supply(Config()), Provide(new_database))
+        nested: Component = Component(Supply(Config()), Provide(new_database))
         for _ in range(4):
-            inner = Component(inner)
+            nested = Component(nested)
 
-        assert isinstance(await inner.resolve(Database), Database)
+        assert isinstance(await App(nested).resolve(Database), Database)
 
     async def test_modules_side_by_side_inside_a_component(self):
         config_module = Component("config", Supply(Config()))
         database_module = Component("database", Provide(new_database))
 
-        app = Component(Component(config_module, database_module))
+        app = App(Component(config_module, database_module))
 
         assert isinstance(await app.resolve(Database), Database)
 
@@ -52,7 +52,7 @@ class TestNesting:
             seen.append(database)
 
         module = Component("database", Supply(Config()), Provide(new_database))
-        app = Component(Component(module, Invoke(use)))
+        app = App(Component(module, Invoke(use)))
 
         await app.start()
         await app.stop()
@@ -69,7 +69,7 @@ class TestComponentName:
     def test_the_name_is_not_a_child_component(self):
         module = Component("database", Provide(new_database))
 
-        assert len(module.get_components()) == 1
+        assert len(module) == 1
 
     def test_the_name_is_optional(self):
         assert Component(Provide(new_database)).name is None

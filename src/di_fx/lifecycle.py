@@ -11,11 +11,9 @@ from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
+from .errors import HookTimeoutError
+
 logger = logging.getLogger(__name__)
-
-
-class HookTimeoutError(RuntimeError):
-    """Raised when a lifecycle hook exceeds its timeout."""
 
 
 @dataclass

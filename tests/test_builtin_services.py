@@ -2,7 +2,7 @@
 
 import pytest
 
-from di_fx import Component, DotGraph, Invoke, Provide, Shutdowner
+from di_fx import App, DotGraph, Invoke, Provide, Shutdowner
 
 
 class TestDotGraph:
@@ -26,9 +26,7 @@ class TestDotGraph:
             assert "str" in dot_output
             return dot_output
 
-        app = Component(
-            Provide(create_config, create_server), Invoke(print_dependency_graph)
-        )
+        app = App(Provide(create_config, create_server), Invoke(print_dependency_graph))
 
         # Should not raise any errors
         app.validate()
@@ -84,7 +82,7 @@ class TestShutdowner:
             assert not shutdowner.is_shutdown_requested()
             return f"Health monitor setup for {service}"
 
-        app = Component(Provide(create_service), Invoke(setup_health_monitor))
+        app = App(Provide(create_service), Invoke(setup_health_monitor))
 
         # Should not raise any errors
         app.validate()
@@ -173,7 +171,7 @@ class TestBuiltinServicesIntegration:
 
             return f"Monitoring setup for {service} with graph and shutdowner"
 
-        app = Component(Provide(create_service), Invoke(setup_monitoring))
+        app = App(Provide(create_service), Invoke(setup_monitoring))
 
         # Should not raise any errors
         app.validate()

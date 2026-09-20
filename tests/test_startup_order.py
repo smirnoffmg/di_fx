@@ -6,7 +6,7 @@ two phases the wrong way round makes the documented pattern -- a provider that
 appends a Hook for the resource it builds -- impossible to express.
 """
 
-from di_fx import Component, Hook, Invoke, Lifecycle, Provide
+from di_fx import App, Hook, Invoke, Lifecycle, Provide
 
 
 class Server:
@@ -33,7 +33,7 @@ class TestStartupOrder:
         def use_server(server: Server) -> None:
             resolved.append(server)
 
-        app = Component(Provide(new_server), Invoke(use_server))
+        app = App(Provide(new_server), Invoke(use_server))
         await app.start()
 
         assert resolved, "the invokable never ran"
@@ -60,7 +60,7 @@ class TestStartupOrder:
         def use_server(server: Server) -> None:
             events.append("invoke")
 
-        app = Component(Provide(new_server), Invoke(use_server))
+        app = App(Provide(new_server), Invoke(use_server))
         await app.start()
         await app.stop()
 
@@ -86,7 +86,7 @@ class TestStartupOrder:
         def use_server(server: Server) -> None:
             pass
 
-        app = Component(Provide(new_server), Invoke(use_server))
+        app = App(Provide(new_server), Invoke(use_server))
         await app.start()
         await app.stop()
 

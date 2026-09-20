@@ -5,23 +5,24 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from di_fx import Component, Hook, Invoke, Lifecycle, Provide
-from di_fx.lifecycle import HookTimeoutError
-from di_fx.lifecycle_manager import LifecycleManager
+from di_fx import App, Hook, HookTimeoutError, Invoke, Lifecycle, Provide
 
 
 class TestTaskCancellation:
     async def test_stop_cancels_tracked_tasks(self):
-        manager = LifecycleManager()
-        manager.set_loop(asyncio.get_running_loop())
-        manager.start()
+        tasks = []
 
+        def use() -> None:
+            pass
+
+        app = App(Invoke(use))
+        await app.start()
         for _ in range(4):
-            manager.create_task(asyncio.sleep(100))
+            tasks.append(app.create_task(asyncio.sleep(100)))
 
-        await manager.stop()
+        await app.stop()
 
-        assert manager.get_task_count() == 0
+        assert all(task.cancelled() for task in tasks)
 
 
 class TestHookTimeout:
@@ -105,7 +106,7 @@ class TestResources:
         def boom(connection: str) -> None:
             raise RuntimeError("invokable failed")
 
-        app = Component(Provide(new_connection), Invoke(boom))
+        app = App(Provide(new_connection), Invoke(boom))
 
         with pytest.raises(RuntimeError, match="invokable failed"):
             await app.start()
@@ -130,7 +131,7 @@ class TestResources:
         def use(worker: int) -> None:
             pass
 
-        app = Component(Provide(new_connection, new_worker), Invoke(use))
+        app = App(Provide(new_connection, new_worker), Invoke(use))
         await app.start()
         await app.stop()
 
@@ -184,7 +185,7 @@ class TestApplicationShutdown:
         def use(worker: int) -> None:
             pass
 
-        app = Component(Provide(new_worker), Invoke(use))
+        app = App(Provide(new_worker), Invoke(use))
         await app.start()
 
         with pytest.raises(ExceptionGroup) as exc_info:

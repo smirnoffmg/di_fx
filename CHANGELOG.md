@@ -4,6 +4,54 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-20
+
+Structural release. The public API changes; behaviour does not, except where noted.
+
+### Changed
+
+- **`App` is the runnable application; `Component` is inert.** `Provide`, `Supply`,
+  `Invoke` and `Component` are plain records now — they describe an application and
+  know nothing about running one. `Component(...).start()` becomes
+  `App(Component(...)).start()`, or just `App(Provide(...), Supply(...))`.
+
+  They used to inherit `Component`, which was itself the application container. That
+  gave `get_providers()` two different meanings depending on the receiver (Provide
+  components vs Provider records), which is what broke nesting; it built a full
+  orchestrator with nine managers inside every `Provide(...)`, five of them for an
+  application of three components; and it left the provider dictionary living in
+  three copies with no owner.
+
+- **`async with app:` starts on entry and stops on exit.** `Component.lifecycle()`
+  called `start()` on the way *out* of the block, so everything inside ran before any
+  startup hook. It survives as a deprecated alias for `async with`.
+
+  Consequence: resolving a type whose constructor appends a lifecycle hook has to
+  happen during initialization, which means from an `Invoke` function. Two examples
+  were doing it from inside the context block and have been restructured.
+
+- **One graph.** `flatten()` walks the registrations into an immutable `Graph` that
+  owns the providers, values and invokables; `Resolver` and the validator read the
+  same structure through the same `can_resolve()` predicate.
+
+- **Exceptions live in `di_fx.errors`** under a `DiFxError` base, with
+  `MissingProviderError`, `DuplicateProviderError` and `CircularDependencyError` as
+  `ValidationError` subclasses, so existing `except ValidationError` still catches
+  them. `HookTimeoutError` moved there from `di_fx.lifecycle`.
+
+- **`__all__` is 19 names.** The internal managers are no longer exported.
+
+### Removed
+
+- `AppOrchestrator`, `BuiltinServiceManager`, `ComponentProcessor`,
+  `ComponentProcessorManager`, `DependencyResolver`, `ErrorHandler`,
+  `InvokableExecutor`, `LifecycleManager`, `StateManager`, `ValidationManager` — 15
+  modules, replaced by `app.py`, `graph.py`, `registrations.py`, `resolver.py` and
+  `errors.py`. 21 modules become 11, and 1087 statements become 612.
+- `Provider.singleton`, which was never `False`. Every provider is a singleton;
+  scopes are a stated non-goal.
+- `ErrorHandler.safe_execute` and the retry/backoff layer: no callers.
+
 ## [0.2.0] - 2026-09-20
 
 ### Scope

@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from di_fx import Component, Invoke, Provide, Shutdowner
+from di_fx import App, Invoke, Provide, Shutdowner
 
 
 class Service:
@@ -27,7 +27,7 @@ class TestProgrammaticShutdown:
                 0.01, lambda: asyncio.ensure_future(service.shutdowner.shutdown())
             )
 
-        app = Component(Provide(new_service), Invoke(use))
+        app = App(Provide(new_service), Invoke(use))
 
         await asyncio.wait_for(app.run(), timeout=2)
 
@@ -39,7 +39,7 @@ class TestProgrammaticShutdown:
         def use(service: Service) -> None:
             resolved.append(service)
 
-        app = Component(Provide(new_service), Invoke(use))
+        app = App(Provide(new_service), Invoke(use))
         await app.start()
         try:
             shutdowner = resolved[0].shutdowner
@@ -59,7 +59,7 @@ class TestProgrammaticShutdown:
                 lambda: asyncio.ensure_future(service.shutdowner.shutdown())
             )
 
-        app = Component(Provide(new_service), Invoke(use))
+        app = App(Provide(new_service), Invoke(use))
 
         started = time.monotonic()
         await asyncio.wait_for(app.run(), timeout=2)
@@ -77,7 +77,7 @@ class TestSignals:
                 0.01, lambda: os.kill(os.getpid(), signal.SIGTERM)
             )
 
-        app = Component(Provide(new_service), Invoke(use))
+        app = App(Provide(new_service), Invoke(use))
 
         # If the application fails to install its own handler, the default action
         # for SIGTERM kills the test runner outright. This placeholder turns that
@@ -96,7 +96,7 @@ class TestSignals:
                 lambda: asyncio.ensure_future(service.shutdowner.shutdown())
             )
 
-        app = Component(Provide(new_service), Invoke(use))
+        app = App(Provide(new_service), Invoke(use))
         await asyncio.wait_for(app.run(), timeout=2)
 
         # Leaving handlers installed would make the next SIGINT in this process
