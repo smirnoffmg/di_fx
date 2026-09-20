@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "di-fx"
-version = "0.1.0"
+version = "0.2.0"
 description = "Modern, async-first dependency injection for Python inspired by Uber-Fx"
 readme = "README.md"
 license = { text = "MIT" }

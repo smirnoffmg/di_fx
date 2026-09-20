@@ -5,7 +5,7 @@ This package provides a function-centric, event-loop native dependency
 injection framework with superior performance and seamless async integration.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "di_fx contributors"
 
 from typing import Annotated
