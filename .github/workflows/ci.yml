@@ -18,61 +18,58 @@ jobs:
         python-version: ["3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@v7
+
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install uv
-      uses: astral-sh/setup-uv@v1
+      uses: astral-sh/setup-uv@v10
       with:
         version: latest
-    
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      env:
-        UV_CACHE_DIR: ~/.cache/uv
-      with:
-        path: |
-          ~/.cache/uv
-        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-uv-
-    
+        enable-cache: true
+        cache-dependency-glob: uv.lock
+
     - name: Install dependencies
       run: |
         uv sync --dev
-    
+
     - name: Check code formatting
       run: |
         uv run ruff format --check src/ tests/ examples/
-    
+
     - name: Check import sorting
       run: |
         uv run ruff check --select I src/ tests/ examples/
-    
+
     - name: Run linting
       run: |
         uv run ruff check src/ tests/ examples/
-    
+
     - name: Run type checking
       run: |
         uv run mypy src/
-    
+
     - name: Run tests
       run: |
-        uv run pytest tests/ -v --cov=src/di_fx --cov-report=xml
-    
+        uv run pytest tests/ -v --cov=src/di_fx --cov-report=xml --cov-fail-under=80
+
+    # The test suite exercises the managers; the examples are the only thing that
+    # assembles a container the way the README tells people to.
+    - name: Run examples
+      run: |
+        for example in examples/*.py; do
+          echo "::group::$example"
+          uv run python "$example" || exit 1
+          echo "::endgroup::"
+        done
+
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v7
       with:
-        file: ./coverage.xml
+        files: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
-    
-    - name: Optimize cache
-      run: |
-        uv cache prune --ci

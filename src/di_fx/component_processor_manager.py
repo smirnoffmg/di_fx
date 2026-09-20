@@ -8,7 +8,6 @@ component processing logic, separating concerns from the main Component class.
 from typing import Any
 
 from .component import Component
-from .component_processor import ComponentProcessor
 from .invoke import Invoke
 from .provide import Provide
 from .supply import Supply
@@ -37,22 +36,11 @@ class ComponentProcessorManager:
         elif isinstance(component, Invoke):
             self._invokables.extend(component.get_invokables())
         elif isinstance(component, Component):
-            # Extract components from Component using shared processor
-            components_tuple = tuple(component.get_components())
-            providers = ComponentProcessor.extract_providers(components_tuple)
-            supplies = ComponentProcessor.extract_supplies(components_tuple)
-            invokables = ComponentProcessor.extract_invokables(components_tuple)
-
-            # Add extracted providers
-            for provider in providers:
-                self._add_provider(provider.return_type, provider)
-
-            # Add extracted supplies
-            for supply in supplies:
-                self._values[supply.type_] = supply
-
-            # Add extracted invokables
-            self._invokables.extend(invokables)
+            # Recurse rather than extract: Component.get_providers() hands back
+            # Provide components while Provide.get_providers() hands back Provider
+            # records, and mixing the two broke at the third level of nesting.
+            for sub_component in component.get_components():
+                self.process_component(sub_component)
         else:
             raise ValueError(f"Unknown component type: {type(component)}")
 

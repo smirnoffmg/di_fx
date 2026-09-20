@@ -117,12 +117,17 @@ async def demonstrate_validation_failure() -> None:
     print("DEMONSTRATING VALIDATION FAILURE")
     print("=" * 50)
 
-    # Create an app with missing dependencies
-    def create_service_a(service_b: str) -> str:
+    # Create an app with a missing dependency. Each provider needs a return type
+    # of its own: providers are keyed by return type, so two functions returning
+    # str would be two providers competing for the same key.
+    ServiceA = Annotated[str, "service_a"]
+    ServiceB = Annotated[str, "service_b"]
+
+    def create_service_a(service_b: ServiceB) -> ServiceA:
         return f"ServiceA with {service_b}"
 
-    def create_service_b(service_c: int) -> str:
-        return f"ServiceB with {service_c}"
+    def create_service_b(missing: int) -> ServiceB:
+        return f"ServiceB with {missing}"
 
     app = Component(Provide(create_service_a, create_service_b))
 
