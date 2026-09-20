@@ -83,14 +83,14 @@ class TestInvokableExecutor:
         with patch.object(
             invokable_executor, "_execute_single_invokable", side_effect=error
         ):
-            with patch("builtins.print") as mock_print:
+            with patch("di_fx.invokable_executor.logger") as mock_logger:
                 with pytest.raises(RuntimeError):
                     await invokable_executor.execute_invokables(
                         invokables, mock_resolve_dependency
                     )
 
-                mock_print.assert_called_once_with(
-                    f"Error executing {mock_invokable.name}: {error}"
+                mock_logger.error.assert_called_once_with(
+                    "Error executing %s: %s", mock_invokable.name, error
                 )
 
     @pytest.mark.asyncio

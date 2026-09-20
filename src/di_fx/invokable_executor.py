@@ -5,11 +5,14 @@ This module provides an InvokableExecutor class that handles all
 invokable execution logic, separating concerns from the main App class.
 """
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
 from .builtin_service_manager import BuiltinServiceManager
 from .invoke import Invokable
+
+logger = logging.getLogger(__name__)
 
 
 class InvokableExecutor:
@@ -46,9 +49,8 @@ class InvokableExecutor:
         for invokable in invokables:
             try:
                 await self._execute_single_invokable(invokable, resolve_dependency)
-            except Exception as e:
-                # Log error but continue with other invokables
-                print(f"Error executing {invokable.name}: {e}")
+            except Exception as error:
+                logger.error("Error executing %s: %s", invokable.name, error)
                 raise
 
     async def _execute_single_invokable(

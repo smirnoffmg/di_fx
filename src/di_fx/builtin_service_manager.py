@@ -33,14 +33,19 @@ class BuiltinServiceManager:
         return self._dotgraph
 
     def get_shutdowner(self) -> Shutdowner:
-        """Get or create the Shutdowner instance."""
+        """Get or create the Shutdowner instance.
+
+        The callback is looked up when shutdown is requested, not when the
+        Shutdowner is built: a service can be resolved before the application
+        has wired its callback up, and it must still shut the application down.
+        """
         if self._shutdowner is None:
-            if self._shutdown_callback is None:
-                # Default no-op callback if none is set
-                self._shutdowner = Shutdowner(lambda: None)
-            else:
-                self._shutdowner = Shutdowner(self._shutdown_callback)
+            self._shutdowner = Shutdowner(self._request_shutdown)
         return self._shutdowner
+
+    def _request_shutdown(self) -> None:
+        if self._shutdown_callback is not None:
+            self._shutdown_callback()
 
     def is_dotgraph_initialized(self) -> bool:
         """Check if DotGraph has been initialized."""
