@@ -1,8 +1,7 @@
-"""
-Built-in services example for di_fx.
+"""The services di_fx supplies on its own.
 
-This example demonstrates how to use the automatically provided
-DotGraph and Shutdowner services.
+Shows: Shutdowner for stopping the application from inside it, and DotGraph for
+rendering the dependency graph with Graphviz.
 """
 
 import asyncio
@@ -12,7 +11,7 @@ from di_fx import App, Component, DotGraph, Invoke, Provide, Shutdowner
 
 # Use Annotated types to create distinct types
 DatabaseType = Annotated[str, "database"]
-ServerType = Annotated[str, "server"]
+SchedulerType = Annotated[str, "scheduler"]
 ConfigType = Annotated[dict, "config"]
 
 
@@ -27,16 +26,16 @@ def create_database(config: ConfigType) -> DatabaseType:
     return "Database"
 
 
-def create_server() -> ServerType:
-    """Create HTTP server."""
-    print("Creating HTTP server")
-    return "Server"
+def create_scheduler() -> SchedulerType:
+    """Create HTTP scheduler."""
+    print("Creating HTTP scheduler")
+    return "Scheduler"
 
 
-def setup_routes(server: ServerType) -> str:
-    """Setup HTTP routes."""
-    print(f"Setting up routes for {server}")
-    return "Routes configured"
+def schedule_jobs(scheduler: SchedulerType) -> str:
+    """Setup HTTP jobs."""
+    print(f"Scheduling jobs for {scheduler}")
+    return "Jobs scheduled"
 
 
 def seed_database(database: DatabaseType) -> str:
@@ -65,13 +64,13 @@ def print_dependency_graph(graph: DotGraph) -> str:
 
 
 def setup_health_monitoring(
-    shutdowner: Shutdowner, database: DatabaseType, server: ServerType
+    shutdowner: Shutdowner, database: DatabaseType, scheduler: SchedulerType
 ) -> str:
     """Setup health monitoring with automatic shutdown capability.
 
     This function automatically receives a Shutdowner instance.
     """
-    print(f"Setting up health monitoring for {database} and {server}")
+    print(f"Setting up health monitoring for {database} and {scheduler}")
 
     # Simulate a health check that might trigger shutdown
     async def health_check() -> None:
@@ -88,9 +87,9 @@ def setup_health_monitoring(
     return "Health monitoring configured"
 
 
-def print_startup_info(database: DatabaseType, server: ServerType) -> str:
+def print_startup_info(database: DatabaseType, scheduler: SchedulerType) -> str:
     """Print startup information."""
-    print(f"Application started with {database} and {server}")
+    print(f"Application started with {database} and {scheduler}")
     return "Startup info printed"
 
 
@@ -100,9 +99,9 @@ DatabaseModule = Component(
     Invoke(seed_database),
 )
 
-HttpModule = Component(
-    Provide(create_server),
-    Invoke(setup_routes),
+SchedulerModule = Component(
+    Provide(create_scheduler),
+    Invoke(schedule_jobs),
 )
 
 
@@ -111,7 +110,7 @@ def create_app() -> Component:
     """Create application options."""
     return Component(
         DatabaseModule,
-        HttpModule,
+        SchedulerModule,
         Invoke(
             print_dependency_graph,  # DotGraph auto-injected
             setup_health_monitoring,  # Shutdowner auto-injected
@@ -139,13 +138,6 @@ async def main() -> None:
     # Use the application lifecycle
     async with app:
         print("Application is running...")
-
-        # Resolve dependencies to verify they work
-        database = await app.resolve(DatabaseType)
-        server = await app.resolve(ServerType)
-        config = await app.resolve(ConfigType)
-
-        print(f"Resolved: {database}, {server}, {config}")
 
         # Simulate some work
         await asyncio.sleep(0.1)

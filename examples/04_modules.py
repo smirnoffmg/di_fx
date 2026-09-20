@@ -1,11 +1,7 @@
-"""
-Complete features example for di_fx.
+"""Composing an application out of named modules.
 
-This example demonstrates all the new functionality:
-- Invoke for startup initialization
-- Module for named modular organization
-- Component for grouping components
-- Annotated types for distinct dependency injection
+Shows: Component as a named group of registrations, nesting, and Annotated aliases
+to keep two providers that both return str from colliding.
 """
 
 import asyncio
@@ -15,7 +11,7 @@ from di_fx import App, Component, Invoke, Provide
 
 # Use Annotated types to create distinct types for dependency injection
 DatabaseType = Annotated[str, "database"]
-ServerType = Annotated[str, "server"]
+SchedulerType = Annotated[str, "scheduler"]
 ConfigType = Annotated[dict, "config"]
 
 
@@ -30,16 +26,16 @@ def create_database(config: ConfigType) -> DatabaseType:
     return "Database"
 
 
-def create_server() -> ServerType:
-    """Create HTTP server."""
-    print("Creating HTTP server")
-    return "Server"
+def create_scheduler() -> SchedulerType:
+    """Create HTTP scheduler."""
+    print("Creating HTTP scheduler")
+    return "Scheduler"
 
 
-def setup_routes(server: ServerType) -> str:
-    """Setup HTTP routes."""
-    print(f"Setting up routes for {server}")
-    return "Routes configured"
+def schedule_jobs(scheduler: SchedulerType) -> str:
+    """Setup HTTP jobs."""
+    print(f"Scheduling jobs for {scheduler}")
+    return "Jobs scheduled"
 
 
 def seed_database(database: DatabaseType) -> str:
@@ -48,9 +44,9 @@ def seed_database(database: DatabaseType) -> str:
     return "Database seeded"
 
 
-def print_startup_info(database: DatabaseType, server: ServerType) -> str:
+def print_startup_info(database: DatabaseType, scheduler: SchedulerType) -> str:
     """Print startup information."""
-    print(f"Application started with {database} and {server}")
+    print(f"Application started with {database} and {scheduler}")
     return "Startup info printed"
 
 
@@ -61,10 +57,10 @@ DatabaseModule = Component(
     Invoke(seed_database),
 )
 
-HttpModule = Component(
-    "http",
-    Provide(create_server),
-    Invoke(setup_routes),
+SchedulerModule = Component(
+    "scheduler",
+    Provide(create_scheduler),
+    Invoke(schedule_jobs),
 )
 
 
@@ -73,30 +69,31 @@ def create_app() -> Component:
     """Create application options."""
     return Component(
         DatabaseModule,
-        HttpModule,
+        SchedulerModule,
         Invoke(print_startup_info),
     )
 
 
+def report(
+    database: DatabaseType, scheduler: SchedulerType, config: ConfigType
+) -> None:
+    """Asking for the three types here is what causes them to be built.
+
+    It happens during initialization, which is the only phase where a constructor
+    may still append a lifecycle hook. Resolving from inside the `async with`
+    block below would be too late for that.
+    """
+    print(f"Resolved: {database}, {scheduler}, {config}")
+
+
 async def main() -> None:
     """Main application function."""
-    print("Starting di_fx application with all features...")
+    print("Starting di_fx application built from modules...")
 
-    # Create the application with all components
-    app = App(create_app())
+    app = App(create_app(), Invoke(report))
 
-    # Use the application lifecycle
     async with app:
         print("Application is running...")
-
-        # Resolve dependencies to verify they work
-        database = await app.resolve(DatabaseType)
-        server = await app.resolve(ServerType)
-        config = await app.resolve(ConfigType)
-
-        print(f"Resolved: {database}, {server}, {config}")
-
-        # Simulate some work
         await asyncio.sleep(0.1)
 
     print("Application stopped!")

@@ -57,8 +57,8 @@ jobs:
       run: |
         uv run pytest tests/ -v --cov=src/di_fx --cov-report=xml --cov-fail-under=80
 
-    # The test suite exercises the managers; the examples are the only thing that
-    # assembles a container the way the README tells people to.
+    # The examples are the only thing that assembles a container the way the
+    # README tells people to, so a broken one has to fail the build.
     - name: Run examples
       run: |
         for example in examples/*.py; do

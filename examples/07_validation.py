@@ -1,8 +1,7 @@
-"""
-Validation example for di_fx.
+"""Checking the graph before anything runs.
 
-This example demonstrates how to validate dependency graphs
-before starting the application to catch missing dependencies.
+Shows: validate() as a pre-flight check, and what the error looks like when a
+dependency is missing.
 """
 
 import asyncio
@@ -12,7 +11,7 @@ from di_fx import App, Component, Invoke, Provide, ValidationError
 
 # Use Annotated types to create distinct types for dependency injection
 DatabaseType = Annotated[str, "database"]
-ServerType = Annotated[str, "server"]
+SchedulerType = Annotated[str, "scheduler"]
 ConfigType = Annotated[dict, "config"]
 
 
@@ -27,16 +26,16 @@ def create_database(config: ConfigType) -> DatabaseType:
     return "Database"
 
 
-def create_server() -> ServerType:
-    """Create HTTP server."""
-    print("Creating HTTP server")
-    return "Server"
+def create_scheduler() -> SchedulerType:
+    """Create HTTP scheduler."""
+    print("Creating HTTP scheduler")
+    return "Scheduler"
 
 
-def setup_routes(server: ServerType) -> str:
-    """Setup HTTP routes."""
-    print(f"Setting up routes for {server}")
-    return "Routes configured"
+def schedule_jobs(scheduler: SchedulerType) -> str:
+    """Setup HTTP jobs."""
+    print(f"Scheduling jobs for {scheduler}")
+    return "Jobs scheduled"
 
 
 def seed_database(database: DatabaseType) -> str:
@@ -45,9 +44,9 @@ def seed_database(database: DatabaseType) -> str:
     return "Database seeded"
 
 
-def print_startup_info(database: DatabaseType, server: ServerType) -> str:
+def print_startup_info(database: DatabaseType, scheduler: SchedulerType) -> str:
     """Print startup information."""
-    print(f"Application started with {database} and {server}")
+    print(f"Application started with {database} and {scheduler}")
     return "Startup info printed"
 
 
@@ -58,10 +57,10 @@ DatabaseModule = Component(
     Invoke(seed_database),
 )
 
-HttpModule = Component(
-    "http",
-    Provide(create_server),
-    Invoke(setup_routes),
+SchedulerModule = Component(
+    "scheduler",
+    Provide(create_scheduler),
+    Invoke(schedule_jobs),
 )
 
 
@@ -70,7 +69,7 @@ def create_app() -> Component:
     """Create application options."""
     return Component(
         DatabaseModule,
-        HttpModule,
+        SchedulerModule,
         Invoke(print_startup_info),
     )
 
@@ -100,10 +99,10 @@ async def main() -> None:
 
         # Resolve dependencies to verify they work
         database = await app.resolve(DatabaseType)
-        server = await app.resolve(ServerType)
+        scheduler = await app.resolve(SchedulerType)
         config = await app.resolve(ConfigType)
 
-        print(f"Resolved: {database}, {server}, {config}")
+        print(f"Resolved: {database}, {scheduler}, {config}")
 
         # Simulate some work
         await asyncio.sleep(0.1)

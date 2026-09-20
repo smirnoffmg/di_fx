@@ -232,8 +232,9 @@ make test            # pytest
 make all
 ```
 
-The examples under `examples/` are run in CI; they are the only thing that
-assembles a container end to end, so keep them working.
+The [examples](examples/) are run in CI; they are the only thing that assembles a
+container end to end, so keep them working. `examples/README.md` says what each one
+shows and in what order to read them.
 
 ## Further reading
 

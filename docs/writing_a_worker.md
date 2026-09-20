@@ -6,7 +6,7 @@ its own graph, start its workers, and stop them again when the process is asked 
 exit.
 
 The complete, runnable version of everything below is
-[`examples/queue_consumer.py`](../examples/queue_consumer.py), which CI runs.
+[`examples/02_queue_consumer.py`](../examples/02_queue_consumer.py), which CI runs.
 
 ## The shape
 

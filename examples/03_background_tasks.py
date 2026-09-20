@@ -1,8 +1,7 @@
-"""
-Advanced asyncio integration example for di_fx.
+"""Several background workers under one lifecycle.
 
-This example demonstrates the framework's integration with asyncio
-event loop, background tasks, and proper lifecycle management.
+Shows: one constructor appending a hook per worker, asyncio tasks started and
+cancelled by those hooks, and the whole set unwinding in reverse on shutdown.
 """
 
 import asyncio

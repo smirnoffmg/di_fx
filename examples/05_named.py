@@ -1,8 +1,7 @@
-"""
-Named parameters example for di_fx.
+"""Two of the same thing: primary and replica.
 
-This example demonstrates how to use Named parameters to have
-multiple providers of the same type with different names.
+Shows: Named for distinguishing providers of one underlying type, and what a
+constructor asking for a specific one looks like.
 """
 
 import asyncio
@@ -12,7 +11,7 @@ from di_fx import App, Component, Invoke, Named, Provide
 
 # Use Annotated types to create distinct types
 DatabaseType = Annotated[str, "database"]
-ServerType = Annotated[str, "server"]
+SchedulerType = Annotated[str, "scheduler"]
 
 
 class Database:
@@ -70,10 +69,10 @@ def create_file_config() -> FileConfig:
     return Config("file", {"debug": True, "log_level": "info"})
 
 
-def create_server() -> ServerType:
-    """Create HTTP server."""
-    print("Creating HTTP server...")
-    return "http://localhost:8000"
+def create_scheduler() -> SchedulerType:
+    """Create HTTP scheduler."""
+    print("Creating HTTP scheduler...")
+    return "scheduler://every-60s"
 
 
 def setup_database_connections(primary_db: PrimaryDB, replica_db: ReplicaDB) -> str:
@@ -118,14 +117,14 @@ def setup_services(
     replica_db: ReplicaDB,
     env_config: EnvConfig,
     file_config: FileConfig,
-    server: ServerType,
+    scheduler: SchedulerType,
 ) -> str:
     """Setup all services with named parameters.
 
     This demonstrates how Named parameters work with multiple types.
     """
     print("Setting up all services:")
-    print(f"  Server: {server}")
+    print(f"  Scheduler: {scheduler}")
     print(f"  Primary DB: {primary_db}")
     print(f"  Replica DB: {replica_db}")
     print(f"  Env Config: {env_config}")
@@ -147,9 +146,9 @@ ConfigModule = Component(
     Invoke(merge_configurations),
 )
 
-HttpModule = Component(
-    "http",
-    Provide(create_server),
+SchedulerModule = Component(
+    "scheduler",
+    Provide(create_scheduler),
 )
 
 
@@ -159,7 +158,7 @@ def create_app() -> Component:
     return Component(
         DatabaseModule,
         ConfigModule,
-        HttpModule,
+        SchedulerModule,
         Invoke(setup_services),
     )
 
@@ -194,14 +193,14 @@ async def main() -> None:
         replica_db = await app.resolve(ReplicaDB)
         env_config = await app.resolve(EnvConfig)
         file_config = await app.resolve(FileConfig)
-        server = await app.resolve(ServerType)
+        scheduler = await app.resolve(SchedulerType)
 
         print("\nResolved dependencies:")
         print(f"  Primary DB: {primary_db}")
         print(f"  Replica DB: {replica_db}")
         print(f"  Env Config: {env_config}")
         print(f"  File Config: {file_config}")
-        print(f"  Server: {server}")
+        print(f"  Scheduler: {scheduler}")
 
         # Simulate some work
         await asyncio.sleep(0.1)

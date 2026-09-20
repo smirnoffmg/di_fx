@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-"""
-Basic usage example for di_fx dependency injection framework.
+"""The smallest complete application.
 
-This example demonstrates the core functionality:
-- Service providers
-- Configuration values
-- Lifecycle hooks
-- Async integration
+Shows: Supply for values you already have, Provide for constructors, a resource
+declared as AsyncIterator, a lifecycle Hook, and Invoke as the root of the graph.
+
+Start here.
 """
 
 import asyncio
