@@ -112,6 +112,7 @@ class Lifecycle:
         self._started = True
         for entry in self._entries:
             if entry.on_start is not None:
+                logger.debug("Starting %s", entry.name)
                 try:
                     await asyncio.wait_for(entry.on_start(), entry.timeout)
                 except TimeoutError as error:
@@ -149,6 +150,7 @@ class Lifecycle:
         for entry in reversed(self._entries):
             if not entry.started or entry.on_stop is None:
                 continue
+            logger.debug("Stopping %s", entry.name)
             try:
                 await asyncio.wait_for(entry.on_stop(), entry.timeout)
             except TimeoutError as error:
@@ -163,7 +165,12 @@ class Lifecycle:
         return errors
 
     def __len__(self) -> int:
+        """The number of hooks. Resources are counted by entry_count()."""
         return len(self._hooks())
+
+    def entry_count(self) -> int:
+        """Hooks and resources together, as they will be unwound."""
+        return len(self._entries)
 
     def __iter__(self) -> Iterator[Hook]:
         return iter(self._hooks())

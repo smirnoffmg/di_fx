@@ -1,6 +1,7 @@
 """Turning a graph into objects."""
 
-from collections.abc import Callable
+import contextlib
+from collections.abc import Callable, Iterator
 from typing import Any, TypeVar
 
 from .errors import CircularDependencyError, MissingProviderError
@@ -29,6 +30,7 @@ class Resolver:
         self._builtins = builtins
         self._instances: dict[Any, Any] = {}
         self._resolving: list[Any] = []
+        self._root: str | None = None
 
     async def resolve(self, type_: type[T]) -> T:
         """Produce an instance of the requested type."""
@@ -51,9 +53,7 @@ class Resolver:
 
         provider = self._graph.provider_for(type_)
         if provider is None:
-            raise MissingProviderError(
-                f"No provider registered for type {type_name(type_)}"
-            )
+            raise MissingProviderError(self._missing_message(type_))
 
         self._resolving.append(type_)
         try:
@@ -78,6 +78,26 @@ class Resolver:
             self._lifecycle.add_resource(generator, name=provider.name)
 
         return instance
+
+    @contextlib.contextmanager
+    def resolving_for(self, root: str) -> Iterator[None]:
+        """Name whatever asked for this resolution, for the error message."""
+        previous, self._root = self._root, root
+        try:
+            yield
+        finally:
+            self._root = previous
+
+    def _missing_message(self, type_: Any) -> str:
+        """Say what is missing and, just as usefully, who wanted it."""
+        lines = [f"No provider registered for type {type_name(type_)}"]
+        for needed_by in reversed(self._resolving):
+            provider = self._graph.provider_for(needed_by)
+            where = f" ({provider.where()})" if provider is not None else ""
+            lines.append(f"  required by {type_name(needed_by)}{where}")
+        if self._root is not None:
+            lines.append(f"  required by {self._root}")
+        return "\n".join(lines)
 
     def instances(self) -> dict[Any, Any]:
         """What has been built so far. For diagnostics."""
