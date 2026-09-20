@@ -123,11 +123,15 @@ class TestComponent:
 
     def test_nested_components(self):
         """Test that components can contain other components."""
+        from typing import Annotated
 
-        def create_database() -> str:
+        DatabaseType = Annotated[str, "database"]
+        ServerType = Annotated[str, "server"]
+
+        def create_database() -> DatabaseType:
             return "Database"
 
-        def create_server() -> str:
+        def create_server() -> ServerType:
             return "Server"
 
         inner_component = Component(Provide(create_database))

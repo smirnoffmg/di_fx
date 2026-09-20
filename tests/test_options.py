@@ -1,14 +1,20 @@
 """Tests for Component functionality."""
 
+from typing import Annotated
+
 from di_fx import Component, Invoke, Provide, Supply
 
+# Providers are keyed by return type, so each one needs a type of its own.
+DatabaseType = Annotated[str, "database"]
+ServerType = Annotated[str, "server"]
 
-def create_database() -> str:
+
+def create_database() -> DatabaseType:
     """Create a database connection."""
     return "Database"
 
 
-def create_server() -> str:
+def create_server() -> ServerType:
     """Create an HTTP server."""
     return "Server"
 
@@ -18,12 +24,12 @@ def create_config() -> dict:
     return {"port": 8000}
 
 
-def setup_database(db: str) -> str:
+def setup_database(db: DatabaseType):
     """Setup database."""
     return f"{db} setup complete"
 
 
-def setup_server(server: str, config: dict) -> str:
+def setup_server(server: ServerType, config: dict):
     """Setup server."""
     return f"{server} setup complete on port {config['port']}"
 
@@ -185,7 +191,8 @@ class TestComponentClass:
 
         # Test that the app can process components
         assert len(app) == 2  # Two components
-        assert app.has_provider(str)  # Should have string providers
+        assert app.has_provider(DatabaseType)
+        assert app.has_provider(ServerType)
         assert app.has_value(dict)  # Should have dict values
 
     def test_component_methods(self):

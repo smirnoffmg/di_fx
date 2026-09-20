@@ -7,6 +7,7 @@ dependency resolution logic, separating concerns from the main App class.
 
 from typing import Any, TypeVar
 
+from .builtin_service_manager import BuiltinServiceManager
 from .lifecycle import Lifecycle
 from .lifecycle_manager import LifecycleManager
 from .named import get_named_type_info, is_named_type
@@ -24,6 +25,7 @@ class DependencyResolver:
         instances: dict[type[Any], Any],
         lifecycle: Lifecycle,
         lifecycle_manager: LifecycleManager,
+        builtin_service_manager: BuiltinServiceManager,
     ) -> None:
         """Initialize the dependency resolver.
 
@@ -32,18 +34,21 @@ class DependencyResolver:
             values: Dictionary of type -> value mappings
             instances: Dictionary of cached instances
             lifecycle: Lifecycle instance for built-in services
-            lifecycle_manager: LifecycleManager for managing async generators
+            lifecycle_manager: LifecycleManager for tasks and the event loop
+            builtin_service_manager: The single source of the built-in services
         """
         self._providers = providers
         self._values = values
         self._instances = instances
         self._lifecycle = lifecycle
         self._lifecycle_manager = lifecycle_manager
-        self._builtin_dotgraph: Any = None
-        self._builtin_shutdowner: Any = None
+        self._builtins = builtin_service_manager
+        self._resolving: list[Any] = []
 
     async def resolve(self, type_: type[T]) -> T:
         """Resolve a dependency of the specified type."""
+        from .validation import ValidationError, type_name
+
         if type_ in self._instances:
             return self._instances[type_]  # type: ignore
 
@@ -55,51 +60,56 @@ class DependencyResolver:
         if instance is not None:
             return instance  # type: ignore
 
-        # Handle Named types
-        if is_named_type(type_):
-            return await self._resolve_named_type(type_)  # type: ignore
+        if type_ in self._resolving:
+            # Without this the recursion below runs until the interpreter's own
+            # stack limit, and the traceback says nothing about the graph.
+            path = " -> ".join(
+                type_name(t)
+                for t in [*self._resolving[self._resolving.index(type_) :], type_]
+            )
+            message = f"Circular dependency detected: {path}"
+            raise ValidationError(message, [message])
 
-        # Handle regular providers
-        if type_ not in self._providers:
-            raise KeyError(f"No provider registered for type {type_.__name__}")
+        self._resolving.append(type_)
+        try:
+            # Handle Named types
+            if is_named_type(type_):
+                return await self._resolve_named_type(type_)  # type: ignore
 
-        provider = self._providers[type_]
-        return await self._create_instance(provider)  # type: ignore
+            # Handle regular providers
+            if type_ not in self._providers:
+                message = f"No provider registered for type {type_name(type_)}"
+                raise ValidationError(message, [message])
+
+            provider = self._providers[type_]
+            return await self._create_instance(provider)  # type: ignore
+        finally:
+            self._resolving.pop()
 
     async def _resolve_builtin_service(self, type_: type[Any]) -> Any | None:
         """Resolve built-in services like Lifecycle, DotGraph, and Shutdowner."""
-        # Special case: provide Lifecycle instance
+        from .dotgraph import DotGraph
+        from .shutdowner import Shutdowner
+
         if type_ == Lifecycle:
             return self._lifecycle
 
-        # Special case: provide DotGraph instance
-        from .dotgraph import DotGraph as DotGraphClass
+        if type_ == DotGraph:
+            return self._builtins.get_dotgraph(self._providers, self._values)
 
-        if type_ == DotGraphClass:
-            if self._builtin_dotgraph is None:
-                from .dotgraph import DotGraph
-
-                self._builtin_dotgraph = DotGraph(self._providers, self._values)
-            return self._builtin_dotgraph
-
-        # Special case: provide Shutdowner instance
-        from .shutdowner import Shutdowner as ShutdownerClass
-
-        if type_ == ShutdownerClass:
-            if self._builtin_shutdowner is None:
-                from .shutdowner import Shutdowner
-
-                # We need a callback function - this will be set by the App
-                self._builtin_shutdowner = Shutdowner(lambda: None)
-            return self._builtin_shutdowner
+        if type_ == Shutdowner:
+            return self._builtins.get_shutdowner()
 
         return None
 
     async def _resolve_named_type(self, type_: type[Any]) -> Any:
         """Resolve a Named type dependency."""
+        from .validation import ValidationError
+
         named_info = get_named_type_info(type_)
         if named_info is None:
-            raise KeyError(f"Invalid named type: {type_.__name__}")
+            message = f"Invalid named type: {type_}"
+            raise ValidationError(message, [message])
 
         name, base_type = named_info
 
@@ -111,9 +121,12 @@ class DependencyResolver:
             if base_type in self._providers:
                 provider = self._providers[base_type]
             else:
-                raise KeyError(
+                from .validation import ValidationError
+
+                message = (
                     f"No provider registered for named type {name}:{base_type.__name__}"
                 )
+                raise ValidationError(message, [message])
 
         return await self._create_instance(provider)
 
@@ -148,16 +161,17 @@ class DependencyResolver:
             async for value in generator:
                 instance = value
                 break
-            # Store the generator to manage its lifecycle
-            self._lifecycle_manager.add_async_generator(type(instance), generator)
+            # Register with the lifecycle, not keyed by type: two providers can
+            # yield the same type and both resources have to be closed.
+            self._lifecycle.add_resource(
+                generator,
+                name=getattr(
+                    provider.return_type, "__name__", str(provider.return_type)
+                ),
+            )
 
         # Store instance if singleton
         if provider.singleton:
             self._instances[provider.return_type] = instance
 
         return instance
-
-    def set_shutdown_callback(self, callback: Any) -> None:
-        """Set the shutdown callback for the built-in Shutdowner service."""
-        if self._builtin_shutdowner is not None:
-            self._builtin_shutdowner._shutdown_callback = callback

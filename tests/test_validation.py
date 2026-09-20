@@ -1,108 +1,246 @@
-"""Tests for validation functionality."""
+"""Graph validation: what counts as satisfiable, duplicates, cycles."""
+
+from dataclasses import dataclass
 
 import pytest
 
-from di_fx import Component, Invoke, Provide, ValidationError
+from di_fx import (
+    Component,
+    DotGraph,
+    Invoke,
+    Lifecycle,
+    Provide,
+    Shutdowner,
+    Supply,
+    ValidationError,
+)
+from di_fx.validation import DuplicateProviderError
 
 
-class TestValidation:
-    """Test the validation functionality."""
+@dataclass
+class Config:
+    port: int = 8000
 
-    def test_validation_success(self):
-        """Test that validation passes for valid dependency graphs."""
 
-        def create_config() -> dict:
-            return {"port": 8000}
+class Database:
+    def __init__(self, config: Config) -> None:
+        self.config = config
 
-        def create_server(config: dict) -> str:
-            return f"Server on port {config['port']}"
 
-        app = Component(Provide(create_config, create_server))
+def new_database(config: Config) -> Database:
+    return Database(config)
 
-        # Should not raise any errors
+
+class TestSatisfiability:
+    """Everything the resolver can supply has to count as satisfied."""
+
+    def test_supplied_value_satisfies_a_dependency(self):
+        app = Component(Supply(Config()), Provide(new_database))
+
         app.validate()
 
-    def test_validation_missing_dependency(self):
-        """Test that validation fails when dependencies are missing."""
+    def test_lifecycle_satisfies_a_dependency(self):
+        def new_service(lifecycle: Lifecycle) -> Database:
+            return Database(Config())
 
-        def create_server(config: dict) -> str:
-            return f"Server on port {config['port']}"
+        Component(Provide(new_service)).validate()
 
-        app = Component(Provide(create_server))
+    def test_shutdowner_and_dotgraph_satisfy_a_dependency(self):
+        def new_service(shutdowner: Shutdowner, graph: DotGraph) -> Database:
+            return Database(Config())
 
-        # Should raise ValidationError because config is missing
+        Component(Provide(new_service)).validate()
+
+    def test_missing_dependency_is_reported(self):
+        app = Component(Provide(new_database))
+
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
 
-        error = exc_info.value
-        assert len(error.errors) == 1
-        assert "dict" in error.errors[0]  # The actual type name
-        assert "no provider is registered" in error.errors[0]
+        assert len(exc_info.value.errors) == 1
+        assert "Config" in exc_info.value.errors[0]
 
-    def test_validation_circular_dependency(self):
-        """Test that validation fails when there are circular dependencies."""
+    def test_invokable_dependencies_are_validated(self):
+        def use(database: Database) -> None:
+            pass
 
-        class ServiceA:
-            def __init__(self, service_b: "ServiceB"):
-                self.service_b = service_b
+        app = Component(Invoke(use))
 
-        class ServiceB:
-            def __init__(self, service_a: ServiceA):
-                self.service_a = service_a
-
-        def create_service_a(service_b: ServiceB) -> ServiceA:
-            return ServiceA(service_b)
-
-        def create_service_b(service_a: ServiceA) -> ServiceB:
-            return ServiceB(service_a)
-
-        app = Component(Provide(create_service_a, create_service_b))
-
-        # Should raise ValidationError because of circular dependency
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
 
-        error = exc_info.value
-        assert len(error.errors) >= 1
-        assert "Circular dependency detected" in error.errors[0]
+        assert "Database" in exc_info.value.errors[0]
 
-    def test_validation_with_lifecycle(self):
-        """Test that validation works with lifecycle hooks."""
 
-        def create_config() -> dict:
-            return {"port": 8000}
+class TestDuplicates:
+    def test_two_providers_for_the_same_type_are_rejected(self):
+        def one() -> int:
+            return 1
 
-        def create_server(config: dict) -> str:
-            return f"Server on port {config['port']}"
+        def two() -> int:
+            return 2
 
-        def setup_routes(server: str) -> str:
-            return f"Routes setup for {server}"
+        with pytest.raises(DuplicateProviderError, match="int"):
+            Provide(one, two)
 
-        app = Component(Provide(create_config, create_server), Invoke(setup_routes))
+    def test_duplicate_across_components_is_rejected(self):
+        def one() -> int:
+            return 1
 
-        # Should not raise any errors
-        app.validate()
+        def two() -> int:
+            return 2
 
-    def test_validation_error_details(self):
-        """Test that validation provides detailed error information."""
+        with pytest.raises(DuplicateProviderError, match="int"):
+            Component(Provide(one), Provide(two))
 
-        def create_service_a(service_b: str) -> str:
-            return f"ServiceA with {service_b}"
 
-        def create_service_b(service_c: int) -> str:
-            return f"ServiceB with {service_c}"
+class TestCycles:
+    def test_direct_cycle_is_reported_once_with_the_path(self):
+        class A:
+            pass
 
-        app = Component(Provide(create_service_a, create_service_b))
+        class B:
+            pass
 
-        # Should raise ValidationError with missing dependencies
+        def new_a(b: B) -> A:
+            return A()
+
+        def new_b(a: A) -> B:
+            return B()
+
+        app = Component(Provide(new_a, new_b))
+
         with pytest.raises(ValidationError) as exc_info:
             app.validate()
 
-        error = exc_info.value
-        # Note: Only one error is reported because both providers return 'str'
-        # and the validation stops at the first missing dependency
-        assert len(error.errors) == 1
+        errors = exc_info.value.errors
+        assert len(errors) == 1, errors
+        assert "A" in errors[0] and "B" in errors[0]
 
-        # Check that the missing dependency is reported
-        error_message = error.errors[0].lower()
-        assert "int" in error_message or "str" in error_message
+    def test_self_dependency_is_a_cycle(self):
+        def new_thing(other: int) -> int:
+            return other
+
+        with pytest.raises(ValidationError):
+            Component(Provide(new_thing)).validate()
+
+    def test_diamond_is_not_a_cycle(self):
+        class Leaf:
+            pass
+
+        class Left:
+            pass
+
+        class Right:
+            pass
+
+        class Root:
+            pass
+
+        def new_leaf() -> Leaf:
+            return Leaf()
+
+        def new_left(leaf: Leaf) -> Left:
+            return Left()
+
+        def new_right(leaf: Leaf) -> Right:
+            return Right()
+
+        def new_root(left: Left, right: Right) -> Root:
+            return Root()
+
+        Component(Provide(new_leaf, new_left, new_right, new_root)).validate()
+
+    def test_only_the_nodes_on_the_cycle_are_named(self):
+        class Upstream:
+            pass
+
+        class A:
+            pass
+
+        class B:
+            pass
+
+        def new_a(b: B) -> A:
+            return A()
+
+        def new_b(a: A) -> B:
+            return B()
+
+        def new_upstream(a: A) -> Upstream:
+            return Upstream()
+
+        app = Component(Provide(new_a, new_b, new_upstream))
+
+        with pytest.raises(ValidationError) as exc_info:
+            app.validate()
+
+        assert "Upstream" not in exc_info.value.errors[0]
+
+    async def test_resolver_reports_a_cycle_instead_of_recursing(self):
+        class A:
+            pass
+
+        class B:
+            pass
+
+        def new_a(b: B) -> A:
+            return A()
+
+        def new_b(a: A) -> B:
+            return B()
+
+        app = Component(Provide(new_a, new_b), validate=False)
+
+        with pytest.raises(ValidationError, match="Circular"):
+            await app.resolve(A)
+
+
+class TestAutomaticValidation:
+    async def test_start_validates_the_graph(self):
+        def use(database: Database) -> None:
+            pass
+
+        app = Component(Invoke(use))
+
+        with pytest.raises(ValidationError):
+            await app.start()
+
+    async def test_validation_can_be_switched_off(self):
+        def use(database: Database) -> None:
+            pass
+
+        app = Component(Invoke(use), validate=False)
+
+        # Without validation the failure surfaces later, from the resolver.
+        with pytest.raises(ValidationError, match="No provider"):
+            await app.start()
+
+
+class TestValidateAndResolveAgree:
+    """A graph validate() accepts must resolve, and vice versa."""
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda: Component(Supply(Config()), Provide(new_database)),
+            lambda: Component(Provide(new_database)),
+            lambda: Component(
+                Component(Supply(Config())), Component(Provide(new_database))
+            ),
+        ],
+    )
+    async def test_agreement(self, build):
+        validated = True
+        try:
+            build().validate()
+        except ValidationError:
+            validated = False
+
+        resolved = True
+        try:
+            await build().resolve(Database)
+        except ValidationError:
+            resolved = False
+
+        assert validated == resolved

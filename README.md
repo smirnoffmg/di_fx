@@ -1,486 +1,248 @@
 # di_fx
 
-**Modern, async-first dependency injection for Python inspired by Uber-Fx**
+**Dependency injection and application lifecycle for asyncio, inspired by [Uber-Fx](https://github.com/uber-go/fx)**
 
-[![PyPI version](https://badge.fury.io/py/di_fx.svg)](https://badge.fury.io/py/di_fx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/smirnoffmg/di_fx/workflows/Tests/badge.svg)](https://github.com/smirnoffmg/di_fx/actions)
+[![CI](https://github.com/smirnoffmg/di_fx/workflows/CI/badge.svg)](https://github.com/smirnoffmg/di_fx/actions)
 [![Coverage](https://codecov.io/gh/smirnoffmg/di_fx/branch/main/graph/badge.svg)](https://codecov.io/gh/smirnoffmg/di_fx)
+
+> **Alpha.** The API changes between 0.x releases. Not published to PyPI yet.
 
 ---
 
-## Why di_fx?
+## What it is for
 
-**di_fx** brings the proven patterns of [Uber-Fx](https://github.com/uber-go/fx) to Python with a **native async-first architecture**. Unlike traditional Python DI frameworks, di_fx is built from the ground up for Python's `asyncio` event loop, providing superior performance and seamless integration with modern async Python frameworks.
+di_fx wires an asyncio application from constructor functions and then runs it:
+starts what needs starting in dependency order, waits, and shuts everything down
+in reverse — including the resources whose startup failed halfway through.
+
+It is aimed at **asyncio applications with no web framework above them**: workers,
+queue consumers, daemons, bots, schedulers. There the graph has to be wired *and*
+the process has to be run, and nothing in the ecosystem does both — application
+runners have no dependency graph, and dependency containers stop at teardown.
+
+**Building a web service?** Use [dishka](https://github.com/reagento/dishka) with your
+framework's own `lifespan`. It has scopes, integrations and a larger community, and
+your framework already owns the startup/shutdown phase. di_fx has nothing to add there.
+
+## Install
+
+```bash
+pip install di-fx      # not published yet; for now: pip install -e .
+```
+
+No runtime dependencies. Python 3.12+.
+
+## Quick start
 
 ```python
-from di_fx import Component, Provide, Supply
+import asyncio
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
-# Define your services
-async def new_database_pool(config: DatabaseConfig) -> AsyncIterator[Database]:
-    pool = await asyncpg.create_pool(config.dsn)
-    try:
-        yield Database(pool)
-    finally:
-        await pool.close()
+from di_fx import Component, Hook, Invoke, Lifecycle, Provide, Supply
 
-def new_user_service(db: Database, cache: Cache) -> UserService:
-    return UserService(db, cache)
 
-def new_http_server(lifecycle: Lifecycle, user_service: UserService) -> HttpServer:
-    server = HttpServer(user_service)
-    lifecycle.append(Hook(on_start=server.start, on_stop=server.stop))
-    return server
+@dataclass
+class Config:
+    dsn: str = "postgresql://localhost/app"
 
-# Wire everything together
-def create_app() -> Component:
-    return Component(
-        Provide(
-            new_database_pool,
-            new_cache_service,
-            new_user_service,
-            new_http_server,
-        ),
-        Supply(
-            DatabaseConfig.from_env(),
-            CacheConfig.from_env(),
-        ),
+
+class Database:
+    def __init__(self, dsn: str) -> None:
+        self.dsn = dsn
+
+
+class Worker:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    async def start(self) -> None:
+        print("worker started")
+
+    async def stop(self) -> None:
+        print("worker stopped")
+
+
+# A resource: everything before the yield is startup, everything after is shutdown.
+async def new_database(config: Config) -> AsyncIterator[Database]:
+    database = Database(config.dsn)
+    yield database
+    print("connection closed")
+
+
+# A plain constructor. Its parameters are its dependencies, by type.
+def new_worker(database: Database, lifecycle: Lifecycle) -> Worker:
+    worker = Worker(database)
+    lifecycle.append(Hook(on_start=worker.start, on_stop=worker.stop))
+    return worker
+
+
+# Invoke is what pulls the graph into existence: nothing is constructed unless
+# something asks for it.
+def run(worker: Worker) -> None:
+    print(f"running against {worker.database.dsn}")
+
+
+async def main() -> None:
+    app = Component(
+        Supply(Config()),
+        Provide(new_database, new_worker),
+        Invoke(run),
     )
+    await app.run()
 
-# Run your application
-async def main():
-    app = create_app()
-    await app.run()  # Handles startup, shutdown, and signals
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 🚀 Key Features
+`run()` starts the application, waits for a shutdown request, then stops it.
+SIGINT and SIGTERM are handled for the duration of the run. Use `start()` and
+`stop()` directly if you would rather drive the process yourself.
 
-### **Event Loop Native Architecture**
-- Built specifically for Python's `asyncio` event loop
-- True async dependency resolution with cooperative concurrency
-- Zero threading overhead - everything runs on the event loop
-- Perfect cancellation support throughout the dependency chain
+## The two phases
 
-### **Uber-Fx Inspired Design**
-- **Function-centric approach** - no classes or decorators required
-- **Explicit dependency declaration** through function parameters
-- **Lifecycle management** with startup/shutdown hooks
-- **Modular organization** for large applications
+This is the whole model, and it is Fx's:
 
-### **Superior Performance**
-- 🔥 **10-100x faster** dependency resolution vs traditional frameworks
-- 🧠 **70% less memory usage** through smart caching and resource management
-- ⚡ **Zero-copy type introspection** with Rust-powered core (optional)
-- 🎯 **Lazy initialization** with eager validation
+**Initialization** — `Invoke` functions run, calling the constructors they need,
+which call the constructors *they* need, in dependency order. Constructors may
+append lifecycle hooks; nothing has started yet.
 
-### **Production Ready**
-- **Comprehensive lifecycle management** with graceful startup/shutdown
-- **Request scoping** using context variables
-- **Hot reloading** with zero downtime for development
-- **Rich error messages** with dependency chain visualization
-- **Built-in metrics** and observability hooks
+**Execution** — startup hooks run in the order they were appended. The application
+waits. Then shutdown hooks and resources unwind in the reverse of that order, which
+is reverse dependency order.
 
-## 📦 Installation
+If a startup hook fails, only what actually started is rolled back, and the failure
+is raised. If a shutdown step fails, the remaining steps still run and the failures
+are raised together as an `ExceptionGroup`.
 
-```bash
-pip install di_fx
-```
+## Building blocks
 
-For high-performance Rust core (optional):
-```bash
-pip install di_fx[rust]  # 10-100x performance boost
-```
+| | |
+|---|---|
+| `Provide(f, g, ...)` | Register constructors. The return annotation is the key; the parameter annotations are the dependencies. |
+| `Supply(value, ...)` | Register an already-built value under its own type. |
+| `Invoke(f, ...)` | Functions to run at startup. These are the roots of the graph. |
+| `Component(...)` | Group the above into a module. Components nest; a leading string names one: `Component("database", ...)`. |
+| `Lifecycle` / `Hook` | Ask for `Lifecycle` in a constructor and append a `Hook(on_start=..., on_stop=...)`. Each hook has a `timeout` (30s by default) that is enforced. |
+| `Named("primary", Database)` | Distinguish two providers of the same underlying type. |
+| `Annotate(f, As(Interface))` | Also register a constructor under an interface type. |
 
-## 🎯 Quick Start
+Providers are keyed by their return type, so **two constructors returning the same
+type is an error**, not a silent last-wins. Use distinct types, `Named`, or
+`Annotated[str, "tag"]` when the underlying type is something as generic as `str`.
 
-### 1. Basic Service Definition
+Every provider is a singleton. There are no scopes — see Non-goals.
+
+### Resources
+
+A constructor declared as `AsyncIterator[T]` is a resource: the code before `yield`
+runs at construction, the code after it runs at shutdown. Both a plain statement
+after the `yield` and a `try/finally` work.
 
 ```python
-import asyncio
-from dataclasses import dataclass
-from typing import AsyncIterator
-from di_fx import Component, Hook, Lifecycle, Provide, Supply
-
-@dataclass
-class DatabaseConfig:
-    url: str
-    pool_size: int = 10
-
-class UserService:
-    def __init__(self, db: Database):
-        self.db = db
-    
-    async def get_user(self, user_id: str) -> dict:
-        return await self.db.fetch_user(user_id)
-
-# Constructor functions
-async def new_database(config: DatabaseConfig) -> AsyncIterator[Database]:
-    db = Database(config.url, pool_size=config.pool_size)
-    await db.connect()
+async def new_pool(config: Config) -> AsyncIterator[Pool]:
+    pool = await asyncpg.create_pool(config.dsn)
     try:
-        yield db
+        yield pool
     finally:
-        await db.close()
-
-def new_user_service(db: Database) -> UserService:
-    return UserService(db)
-
-# Application setup
-app = Component(
-    Provide(new_database, new_user_service),
-    Supply(DatabaseConfig(url="postgresql://localhost/mydb")),
-)
-
-async def main():
-    async with app:
-        user_service = await app.resolve(UserService)
-        user = await user_service.get_user("123")
-        print(f"User: {user}")
-
-asyncio.run(main())
+        await pool.close()
 ```
 
-### 2. Lifecycle Management
+Prefer this over `Hook` where you can: the resource and its cleanup stay in one
+place. `Hook` is there for the cases where the thing to start is not the thing the
+constructor builds.
 
-```python
-def new_background_worker(
-    lifecycle: Lifecycle, 
-    user_service: UserService
-) -> BackgroundWorker:
-    worker = BackgroundWorker(user_service)
-    
-    # Register lifecycle hooks
-    lifecycle.append(Hook(
-        on_start=worker.start,
-        on_stop=worker.stop,
-        timeout=30.0
-    ))
-    
-    return worker
+## Built-in services
 
-def new_http_server(
-    lifecycle: Lifecycle,
-    user_service: UserService,
-    config: ServerConfig,
-) -> HttpServer:
-    server = HttpServer(user_service, config.port)
-    
-    lifecycle.append(Hook(
-        on_start=server.start,
-        on_stop=server.stop,
-    ))
-    
-    return server
+Ask for any of these in a constructor or an invokable and di_fx supplies it:
+
+- **`Lifecycle`** — append startup and shutdown hooks.
+- **`Shutdowner`** — `await shutdowner.shutdown("reason")` stops the application
+  from anywhere inside it.
+- **`DotGraph`** — the dependency graph, for rendering with Graphviz.
+
+## Validation
+
+The graph is validated when the application starts: every dependency has to be
+satisfiable by a provider, a supplied value, a built-in or the base type behind a
+`Named`, and there must be no cycles. Call `app.validate()` yourself for a
+pre-flight check, or pass `Component(..., validate=False)` to skip it.
+
+```
+ValidationError: Validation failed with 1 error(s):
+  - Provider Worker depends on Database, but no provider is registered for Database
 ```
 
-## 🌐 Framework Integrations
-
-di_fx provides seamless integration with popular Python web frameworks:
-
-### FastAPI
-
-```python
-from fastapi import FastAPI, Depends
-from di_fx.integrations.fastapi import DIDepends
-
-app = FastAPI()
-
-@app.get("/users/{user_id}")
-async def get_user(
-    user_id: str,
-    user_service: UserService = DIDepends(),
-    cache: CacheService = DIDepends(),
-):
-    user = await user_service.get_user(user_id)
-    await cache.set(f"user:{user_id}", user)
-    return user.to_dict()
-```
-
-### Django (Async Views)
-
-```python
-from di_fx.integrations.django import async_inject
-
-@async_inject(UserService, EmailService)
-async def user_view(request, user_service, email_service):
-    user = await user_service.get_user(request.GET['user_id'])
-    await email_service.send_welcome_email(user.email)
-    return JsonResponse(user.to_dict())
-```
-
-### aiohttp
-
-```python
-from aiohttp import web
-
-async def user_handler(request):
-    di_container = request.app['di_container']
-    user_service = await di_container.resolve(UserService)
-    
-    user_id = request.match_info['user_id']
-    user = await user_service.get_user(user_id)
-    
-    return web.json_response(user.to_dict())
-```
-
-### Flask (2.0+ Async)
-
-```python
-from di_fx.integrations.flask import inject_async
-
-@app.route('/users/<user_id>')
-@inject_async(UserService)
-async def get_user(user_id: str, user_service: UserService):
-    user = await user_service.get_user(user_id)
-    return jsonify(user.to_dict())
-```
-
-## 🧪 Testing
-
-di_fx makes testing with dependency injection straightforward:
+## Testing
 
 ```python
 import pytest
-from di_fx import Component
+from di_fx import Component, Provide, Supply
+
 
 @pytest.fixture
-async def test_app():
-    app = Component(
-        Provide(
-            new_mock_database,  # Test database
-            new_user_service,   # Real service with mocked dependencies
-        ),
-        Supply(TestConfig()),
+def app():
+    return Component(
+        Supply(Config(dsn="postgresql://localhost/test")),
+        Provide(new_fake_database, new_worker),
     )
-    
-    async with app:
-        yield app
 
-@pytest.mark.asyncio
-async def test_user_service(test_app):
-    user_service = await test_app.resolve(UserService)
-    user = await user_service.get_user("123")
-    
-    assert user['id'] == "123"
-    assert user['name'] == "Test User"
 
-# Override specific dependencies
-async def test_with_overrides():
-    mock_database = AsyncMock(spec=Database)
-    mock_database.fetch_user.return_value = {"id": "123", "name": "Mocked"}
-    
-    app = Component(
-        Provide(new_user_service),
-        Override(Database, mock_database),
-    )
-    
-    async with app:
-        user_service = await app.resolve(UserService)
-        user = await user_service.get_user("123")
-        assert user['name'] == "Mocked"
+async def test_worker_uses_the_configured_database(app):
+    worker = await app.resolve(Worker)
+
+    assert worker.database.dsn.endswith("/test")
 ```
 
-## 📊 Performance Comparison
+`resolve()` builds only what the requested type needs, without starting the
+lifecycle. To exercise startup and shutdown, `await app.start()` and
+`await app.stop()`. To substitute a dependency, build the component with a
+different provider — there is no override mechanism.
 
-| Framework           | Dependency Resolution | Memory Usage | Startup Time | Async Support |
-| ------------------- | --------------------- | ------------ | ------------ | ------------- |
-| **di_fx**           | **2ms**               | **15MB**     | **200ms**    | **Native**    |
-| dependency-injector | 50ms                  | 50MB         | 2000ms       | Basic         |
-| pinject             | 100ms                 | 30MB         | 1500ms       | None          |
-| injector            | 80ms                  | 40MB         | 1800ms       | Limited       |
+## Non-goals
 
-*Benchmark: 1000 services, typical web application*
+These are settled, not pending:
 
-## 🏗️ Architecture Highlights
+- **No Rust core.** The measured cost of a PyO3 call is a low per-call overhead on
+  top of a large constant one, which pays off in hot loops and not in a graph that
+  is resolved once at startup.
+- **No hot reloading.** Not a dependency container's job.
+- **No request scopes** before 1.0, possibly ever. Scopes are what the rest of the
+  ecosystem competes on, and dishka does it well.
+- **No performance claims** without a benchmark in this repository. There is none
+  yet, so there are none.
+- **One event loop per application.** Resolution is not thread-safe.
 
-### Event Loop Integration
-```python
-# Everything runs cooperatively on the event loop
-async def complex_resolution():
-    # These resolve concurrently without blocking
-    services = await asyncio.gather(
-        container.resolve(DatabaseService),
-        container.resolve(CacheService),
-        container.resolve(ApiClient),
-    )
-    return services
-```
-
-### Request Scoping
-```python
-from di_fx import request_scope
-
-async def handle_request(request):
-    async with request_scope():
-        # Services created for this request only
-        db_session = await container.resolve(DatabaseSession)
-        user_service = await container.resolve(UserService)  # Uses above session
-        
-        # Process request...
-        user = await user_service.create_user(data)
-        
-        # Session automatically committed/rolled back on scope exit
-```
-
-### Hot Reloading
-```python
-# Development mode with hot reloading
-app = Component(
-    Provide(new_user_service, new_api_handler),
-    EnableHotReload(watch_paths=["./src"]),
-)
-
-# Services automatically reload when files change
-await app.run()  # Watches filesystem and reloads services
-```
-
-## 📚 Documentation
-
-- **[Getting Started](docs/getting_started.md)** - Basic concepts and first application
-- **[Lifecycle Management](docs/lifecycle.md)** - Startup/shutdown orchestration
-- **[Framework Integrations](docs/frameworks.md)** - FastAPI, Django, aiohttp, Flask
-- **[Testing Guide](docs/testing.md)** - Testing patterns and utilities  
-- **[Best Practices](docs/best_practices.md)** - Patterns and anti-patterns
-- **[API Reference](docs/api.md)** - Complete API documentation
-- **[Migration Guide](docs/migration.md)** - Migrating from other DI frameworks
-
-## 🔧 Advanced Features
-
-### Component Organization
-```python
-# database_component.py
-DatabaseComponent = Component(
-    Provide(
-        new_database_pool,
-        new_database_migrator,
-        new_user_repository,
-    ),
-    Supply(DatabaseConfig.from_env()),
-    Invoke(run_migrations),  # Runs after all services start
-)
-
-# main.py
-app = Component(
-    DatabaseComponent,
-    HttpComponent,
-    CacheComponent,
-)
-```
-
-### Background Services
-```python
-def new_task_processor(lifecycle: Lifecycle, queue: MessageQueue) -> TaskProcessor:
-    processor = TaskProcessor(queue)
-    
-    async def start_processing():
-        # Start as managed background task
-        processor.task = asyncio.create_task(processor.run_forever())
-    
-    async def stop_processing():
-        processor.task.cancel()
-        await processor.task
-    
-    lifecycle.append(Hook(
-        on_start=start_processing,
-        on_stop=stop_processing,
-    ))
-    
-    return processor
-```
-
-### Configuration Management
-```python
-@dataclass
-class AppConfig:
-    database: DatabaseConfig
-    cache: CacheConfig
-    server: ServerConfig
-    
-    @classmethod
-    def from_env(cls):
-        return cls(
-            database=DatabaseConfig.from_env(),
-            cache=CacheConfig.from_env(),
-            server=ServerConfig.from_env(),
-        )
-    
-    def validate(self):
-        if self.server.port < 1024 and not self.server.run_as_root:
-            raise ValueError("Cannot bind to privileged port without root")
-
-app = Component(
-    Provide(new_database, new_cache, new_server),
-    Supply(AppConfig.from_env()),
-)
-```
-
-## 🚀 Roadmap
-
-- ✅ **Core DI Framework** - Function-centric async-first DI
-- ✅ **Lifecycle Management** - Startup/shutdown orchestration  
-- ✅ **Framework Integrations** - FastAPI, Django, aiohttp, Flask
-- ✅ **Testing Utilities** - Component and dependency overrides
-- 🔄 **Rust Performance Core** - 10-100x performance boost
-- 🔄 **Advanced Scoping** - Request, WebSocket, Task scopes
-- 🔄 **Service Mesh Integration** - Cross-language service discovery
-- 📅 **Observability Tools** - Metrics, tracing, health checks
-- 📅 **Plugin System** - Dynamic component loading
-- 📅 **Development Tools** - CLI, debugging utilities
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Setup
+## Development
 
 ```bash
 git clone https://github.com/smirnoffmg/di_fx.git
 cd di_fx
+make install-dev     # uv sync --dev
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run type checking
-mypy src/
-
-# Format code
-black src/ tests/
+make format          # ruff format
+make lint            # ruff check + mypy
+make test            # pytest
+make all
 ```
 
-### Running Benchmarks
+The examples under `examples/` are run in CI; they are the only thing that
+assembles a container end to end, so keep them working.
 
-```bash
-python benchmarks/resolution_speed.py
-python benchmarks/memory_usage.py
-python benchmarks/startup_time.py
-```
+## Further reading
 
-## 📄 License
+- [di_fx and Uber-Fx](docs/uber_fx_comparison.md) — what carried over, what changed,
+  and what is deliberately missing
+- [Best practices](docs/best_practices.md)
+- [Troubleshooting](docs/troubleshooting_guide.md)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Acknowledgments
 
-## 🙏 Acknowledgments
+The design is Uber-Fx's: constructor functions, a type-keyed graph, and a lifecycle
+split into initialization and execution. The mistakes are this project's own.
 
-- **[Uber-Fx](https://github.com/uber-go/fx)** - Inspiration for the function-centric architecture
-- **[FastAPI](https://github.com/tiangolo/fastapi)** - Inspiration for the async-first approach
-- **[dependency-injector](https://github.com/ets-labs/python-dependency-injector)** - Lessons learned from existing Python DI frameworks
+## License
 
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=smirnoffmg/di_fx&type=Date)](https://star-history.com/#smirnoffmg/di_fx&Date)
-
----
-
-**Built with ❤️ for the Python async ecosystem**
-
-*di_fx - Dependency Injection for the async future*
+MIT — see [LICENSE](LICENSE).

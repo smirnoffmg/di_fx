@@ -264,3 +264,11 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# Cline-style memory bank kept locally, not versioned
+/activeContext.md
+/productContext.md
+/progress.md
+/projectbrief.md
+/systemPatterns.md
+/techContext.md

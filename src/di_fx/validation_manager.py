@@ -14,25 +14,34 @@ from .validation import validate_dependency_graph
 class ValidationManager:
     """Handles validation for the DI framework."""
 
-    def __init__(self, providers: dict[type[Any], Provider]) -> None:
+    def __init__(
+        self,
+        providers: dict[type[Any], Provider],
+        values: dict[type[Any], Any] | None = None,
+        invokables: list[Any] | None = None,
+    ) -> None:
         """Initialize the validation manager.
 
         Args:
             providers: Dictionary of type -> provider mappings to validate
+            values: Dictionary of type -> supplied value mappings
+            invokables: Functions that will run at startup
         """
         self._providers = providers
+        self._values = values or {}
+        self._invokables = invokables or []
 
     def validate(self) -> None:
         """Validate the dependency graph before starting the application.
 
         This checks for:
-        - Missing dependencies
+        - Missing dependencies, for providers and invokables alike
         - Circular dependencies
 
         Raises:
             ValidationError: If validation fails
         """
-        validate_dependency_graph(self._providers)
+        validate_dependency_graph(self._providers, self._values, self._invokables)
 
     def get_provider_count(self) -> int:
         """Get the number of providers being validated."""

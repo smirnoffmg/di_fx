@@ -21,15 +21,32 @@ class Component:
     functionality previously available in the App class.
     """
 
-    def __init__(self, *components: Any) -> None:
-        """Initialize a component with optional sub-components."""
+    def __init__(
+        self, *components: Any, name: str | None = None, validate: bool = True
+    ) -> None:
+        """Initialize a component with optional sub-components.
+
+        Args:
+            *components: Provide, Supply, Invoke or nested Component instances.
+                A leading string is taken as the component's name, the way
+                fx.Module("server", ...) reads in Uber-Fx.
+            name: The component's name, for logs and error messages
+            validate: Check the dependency graph when the application starts.
+                A nested component is free to be incomplete, so validation runs
+                at start(), where the root is known, rather than here.
+        """
+        if components and isinstance(components[0], str):
+            name = components[0]
+            components = components[1:]
+
+        self.name = name
         self._components = list(components)
 
         # Initialize the orchestrator for application functionality
         # Use lazy import to avoid circular dependency
         from .app_orchestrator import AppOrchestrator
 
-        self._orchestrator = AppOrchestrator(*components)
+        self._orchestrator = AppOrchestrator(*components, validate=validate)
 
     def get_providers(self) -> list[Any]:
         """Extract all Provide components from this component."""

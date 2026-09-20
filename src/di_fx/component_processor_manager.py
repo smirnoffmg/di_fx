@@ -8,7 +8,6 @@ component processing logic, separating concerns from the main Component class.
 from typing import Any
 
 from .component import Component
-from .component_processor import ComponentProcessor
 from .invoke import Invoke
 from .provide import Provide
 from .supply import Supply
@@ -30,32 +29,29 @@ class ComponentProcessorManager:
             component: The component to process (Provide, Supply, Invoke, or Component)
         """
         if isinstance(component, Provide):
-            self._providers.update(
-                {provider.return_type: provider for provider in component}
-            )
+            for provider in component:
+                self._add_provider(provider.return_type, provider)
         elif isinstance(component, Supply):
             self._values.update({value.type_: value for value in component})
         elif isinstance(component, Invoke):
             self._invokables.extend(component.get_invokables())
         elif isinstance(component, Component):
-            # Extract components from Component using shared processor
-            components_tuple = tuple(component.get_components())
-            providers = ComponentProcessor.extract_providers(components_tuple)
-            supplies = ComponentProcessor.extract_supplies(components_tuple)
-            invokables = ComponentProcessor.extract_invokables(components_tuple)
-
-            # Add extracted providers
-            for provider in providers:
-                self._providers[provider.return_type] = provider
-
-            # Add extracted supplies
-            for supply in supplies:
-                self._values[supply.type_] = supply
-
-            # Add extracted invokables
-            self._invokables.extend(invokables)
+            # Recurse rather than extract: Component.get_providers() hands back
+            # Provide components while Provide.get_providers() hands back Provider
+            # records, and mixing the two broke at the third level of nesting.
+            for sub_component in component.get_components():
+                self.process_component(sub_component)
         else:
             raise ValueError(f"Unknown component type: {type(component)}")
+
+    def _add_provider(self, type_: Any, provider: Any) -> None:
+        """Bind a type across components, refusing to shadow an existing binding."""
+        from .validation import DuplicateProviderError
+
+        existing = self._providers.get(type_)
+        if existing is not None and existing.constructor is not provider.constructor:
+            raise DuplicateProviderError(type_, existing, provider)
+        self._providers[type_] = provider
 
     def get_providers(self) -> dict[type[Any], Any]:
         """Get the processed providers."""

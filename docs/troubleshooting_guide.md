@@ -16,13 +16,13 @@ DependencyError: Cannot resolve UserService: No provider found
 1. **Missing Provider Registration**
    ```python
    # Problem: Service not registered
-   app = App(
+   app = Component(
        # new_user_service is missing from Provide()
        Provide(new_database_service)
    )
    
    # Solution: Add the missing provider
-   app = App(
+   app = Component(
        Provide(
            new_database_service,
            new_user_service,  # Add this
@@ -50,13 +50,13 @@ DependencyError: Cannot resolve UserService: No provider found
    def new_database_service(config: DatabaseConfig) -> DatabaseService:
        return DatabaseService(config)
    
-   app = App(
+   app = Component(
        Provide(new_database_service)
        # Missing Supply(DatabaseConfig(...))
    )
    
    # Solution: Supply the configuration
-   app = App(
+   app = Component(
        Provide(new_database_service),
        Supply(DatabaseConfig.from_env()),  # Add this
    )
@@ -615,14 +615,14 @@ When reporting issues, include:
 2. **Minimal Reproduction**
    ```python
    # Create the smallest possible example that reproduces the issue
-   from di_fx import App, Provide
+   from di_fx import Component, Provide
    
    def new_broken_service() -> BrokenService:
        # This should demonstrate the problem
        return BrokenService()
    
    async def main():
-       app = App(Provide(new_broken_service))
+       app = Component(Provide(new_broken_service))
        await app.run()
    
    if __name__ == "__main__":

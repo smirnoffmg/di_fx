@@ -6,11 +6,14 @@ cleanup, and recovery logic, separating these concerns from orchestration.
 """
 
 import asyncio
+import logging
 from collections.abc import Callable
 from typing import Any
 
 from .lifecycle import Lifecycle
 from .lifecycle_manager import LifecycleManager
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorHandler:
@@ -29,7 +32,7 @@ class ErrorHandler:
         Args:
             error: The exception that occurred during startup
         """
-        print(f"Startup failed: {error}")
+        logger.error("Startup failed: %s", error)
         await self._cleanup_on_failure()
 
     async def handle_shutdown_error(self, error: Exception) -> None:
@@ -38,7 +41,7 @@ class ErrorHandler:
         Args:
             error: The exception that occurred during shutdown
         """
-        print(f"Error during shutdown: {error}")
+        logger.error("Error during shutdown: %s", error)
         # Continue with cleanup despite the error
 
     async def handle_lifecycle_error(self, error: Exception, context: str) -> None:
@@ -48,7 +51,7 @@ class ErrorHandler:
             error: The exception that occurred
             context: Context where the error occurred (e.g., 'start', 'stop')
         """
-        print(f"Lifecycle error during {context}: {error}")
+        logger.error("Lifecycle error during %s: %s", context, error)
         if context == "start":
             await self._cleanup_on_failure()
         elif context == "stop":
@@ -63,7 +66,7 @@ class ErrorHandler:
             await self._lifecycle.stop()
         except Exception as cleanup_error:
             # Log cleanup errors but don't re-raise them
-            print(f"Cleanup error during failure recovery: {cleanup_error}")
+            logger.error("Cleanup error during failure recovery: %s", cleanup_error)
 
     async def safe_execute(
         self,
@@ -89,7 +92,7 @@ class ErrorHandler:
                 try:
                     return await fallback()
                 except Exception as fallback_error:
-                    print(f"Fallback operation also failed: {fallback_error}")
+                    logger.error("Fallback operation also failed: %s", fallback_error)
             raise
 
     def create_error_context(
@@ -135,7 +138,10 @@ class ErrorHandler:
             await self._lifecycle.stop()
 
         except Exception as error:
+            # Logged and re-raised: a shutdown that fails silently leaves resources
+            # open with nothing in the caller's control flow to say so.
             await self.handle_shutdown_error(error)
+            raise
 
     def is_cleanup_needed(self) -> bool:
         """Check if cleanup is needed based on current state."""

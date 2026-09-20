@@ -60,6 +60,17 @@ class UserService:
         return {"id": user_id, "name": "John Doe", "db_result": result}
 
 
+class BackgroundWorker:
+    """Background worker with lifecycle management."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def get_name(self) -> str:
+        """Get the worker name."""
+        return self.name
+
+
 async def new_database(config: DatabaseConfig) -> AsyncIterator[Database]:
     """Create and manage database connection."""
     db = Database(config)
@@ -75,19 +86,21 @@ def new_user_service(db: Database) -> UserService:
     return UserService(db)
 
 
-def new_background_worker(lifecycle: Lifecycle, user_service: UserService) -> str:
+def new_background_worker(
+    lifecycle: Lifecycle, user_service: UserService
+) -> BackgroundWorker:
     """Create background worker with lifecycle hooks."""
-    worker_name = "UserDataProcessor"
+    worker = BackgroundWorker("UserDataProcessor")
 
     async def start_worker() -> None:
-        print(f"Starting {worker_name}")
+        print(f"Starting {worker.name}")
 
     async def stop_worker() -> None:
-        print(f"Stopping {worker_name}")
+        print(f"Stopping {worker.name}")
 
-    lifecycle.append(Hook(on_start=start_worker, on_stop=stop_worker, name=worker_name))
+    lifecycle.append(Hook(on_start=start_worker, on_stop=stop_worker, name=worker.name))
 
-    return worker_name
+    return worker
 
 
 async def main() -> None:
@@ -110,11 +123,12 @@ async def main() -> None:
 
         # Resolve dependencies
         user_service = await app.resolve(UserService)
-        _ = await app.resolve(str)  # Background worker
+        background_worker = await app.resolve(BackgroundWorker)
 
         # Use the service
         user = await user_service.get_user("123")
         print(f"User: {user}")
+        print(f"Background worker: {background_worker.get_name()}")
 
         print("Application running...")
         await asyncio.sleep(1)  # Simulate work

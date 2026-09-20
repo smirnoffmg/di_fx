@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "di-fx"
-version = "0.1.0"
+version = "0.2.0"
 description = "Modern, async-first dependency injection for Python inspired by Uber-Fx"
 readme = "README.md"
 license = { text = "MIT" }
@@ -22,7 +22,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
-dependencies = ["typing-extensions>=4.8.0"]
+# No runtime dependencies: the library is stdlib-only by design.
+dependencies = []
 
 
 [project.urls]
@@ -125,7 +126,6 @@ dev = [
     "mypy>=1.17.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
-    "pytest-benchmark>=5.1.0",
     "pytest-cov>=6.2.1",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",

@@ -71,30 +71,30 @@ class TestAnnotate:
         assert user_storage == "UserRepository"
 
     @pytest.mark.asyncio
-    async def test_multiple_providers_same_interface(self):
-        """Test that multiple providers can provide the same interface."""
+    async def test_two_providers_for_one_interface_are_rejected(self):
+        """Two implementations of one interface is a conflict, not a choice.
 
-        def create_user_repo() -> str:
+        Uber-Fx answers this with value groups; di_fx has none, so the only honest
+        outcome is a refusal at registration rather than a silent last-wins.
+        """
+        from typing import Annotated
+
+        from di_fx.validation import DuplicateProviderError
+
+        UserRepo = Annotated[str, "user"]
+        AdminRepo = Annotated[str, "admin"]
+
+        def create_user_repo() -> UserRepo:
             return "UserRepository"
 
-        def create_admin_repo() -> str:
+        def create_admin_repo() -> AdminRepo:
             return "AdminRepository"
 
         class UserAccessor:
             pass
 
-        app = Component(
+        with pytest.raises(DuplicateProviderError, match="UserAccessor"):
             Provide(
                 Annotate(create_user_repo, As(UserAccessor)),
                 Annotate(create_admin_repo, As(UserAccessor)),
             )
-        )
-
-        # Should be able to resolve the concrete types
-        user_repo = await app.resolve(str)
-        # Note: This will resolve to the last registered provider
-        assert user_repo in ["UserRepository", "AdminRepository"]
-
-        # Should be able to resolve the interface type
-        user_accessor = await app.resolve(UserAccessor)
-        assert user_accessor in ["UserRepository", "AdminRepository"]

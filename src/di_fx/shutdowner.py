@@ -5,7 +5,10 @@ This module provides the Shutdowner class that allows any part
 of the application to trigger a graceful shutdown.
 """
 
+import logging
 from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
 
 
 class Shutdowner:
@@ -36,9 +39,9 @@ class Shutdowner:
         self._shutdown_requested = True
 
         if reason:
-            print(f"Shutdown requested: {reason}")
+            logger.info("Shutdown requested: %s", reason)
         else:
-            print("Shutdown requested")
+            logger.info("Shutdown requested")
 
         # Call the shutdown callback
         self._shutdown_callback()
